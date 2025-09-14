@@ -36,11 +36,12 @@ interface SaleData {
     subtotal: number;
     taxAmount: number;
     taxPercent: number;
-    grandTotal: number;
+    grandTotal: number; // This is current sale total
     languageMode: 'English' | 'Tamil';
     previousBalance: number;
-    appliedBalance: number;
+    amountPaid: number;
     newBalance: number;
+    isBalanceEdited?: boolean;
 }
 
 interface Note {
@@ -57,6 +58,19 @@ interface User {
 interface AppSettings {
     invoiceFooter: string;
 }
+
+interface SaleSession {
+    customerName: string;
+    customerMobile: string;
+    priceMode: 'B2C' | 'B2B';
+    languageMode: 'English' | 'Tamil';
+    taxPercent: number;
+    saleItems: SaleItem[];
+    editedNewBalance: string;
+}
+
+type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange';
+
 
 // --- MOCK DATA (DATABASE SIMULATION) ---
 const initialProducts: Product[] = [
@@ -146,44 +160,44 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout })
 type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
-    onPreviewInvoice: (saleData: Omit<SaleData, 'newBalance' | 'id' | 'date'>) => void;
+    onPreviewInvoice: (saleData: Omit<SaleData, 'id' | 'date'>) => void;
     onAddProduct: (newProduct: Omit<Product, 'id'>) => Product;
     onUpdateProduct: (updatedProduct: Product) => void;
     userRole: 'admin' | 'cashier';
+    sessionData: SaleSession;
+    onSessionUpdate: (updates: Partial<SaleSession>) => void;
+    activeBillIndex: number;
+    onBillChange: (index: number) => void;
 };
 
-const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole }) => {
-    const [customerName, setCustomerName] = useState('');
-    const [customerMobile, setCustomerMobile] = useState('');
-    const [priceMode, setPriceMode] = useState<'B2C' | 'B2B'>('B2C');
-    const [languageMode, setLanguageMode] = useState<'English' | 'Tamil'>('English');
-    const [taxPercent, setTaxPercent] = useState(0);
-    const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
-    
+const NewSalePage: React.FC<NewSalePageProps> = ({ 
+    products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole,
+    sessionData, onSessionUpdate, activeBillIndex, onBillChange
+}) => {
+    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, editedNewBalance } = sessionData;
+
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [showAddNew, setShowAddNew] = useState(false);
     const [activeSuggestion, setActiveSuggestion] = useState(-1);
     
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
-    const [balanceApplied, setBalanceApplied] = useState(false);
 
     const mobileInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const prevSaleItemsLengthRef = useRef(saleItems.length);
 
     useEffect(() => {
-        if (customerMobile) {
-            const foundCustomer = customers.find(c => c.mobile === customerMobile);
-            setActiveCustomer(foundCustomer || null);
-            if (foundCustomer && !customerName) {
-                setCustomerName(foundCustomer.name);
-            }
-        } else {
-            setActiveCustomer(null);
+        const foundCustomer = customers.find(c => c.mobile === customerMobile);
+        setActiveCustomer(foundCustomer || null);
+        if (foundCustomer && !customerName) {
+            onSessionUpdate({ customerName: foundCustomer.name });
         }
-        setBalanceApplied(false); // Reset balance application when customer changes
-    }, [customerMobile, customers, customerName]);
+        if (!foundCustomer) {
+             setActiveCustomer(null);
+        }
+        onSessionUpdate({ editedNewBalance: '' }); // Reset edited balance when customer changes
+    }, [customerMobile, customers]);
 
     useEffect(() => {
         if (saleItems.length > prevSaleItemsLengthRef.current) {
@@ -196,7 +210,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             }
         }
         prevSaleItemsLengthRef.current = saleItems.length;
-    }, [saleItems]);
+    }, [saleItems, activeBillIndex]);
 
     useEffect(() => {
         if (searchTerm) {
@@ -211,13 +225,11 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
     }, [searchTerm, products]);
 
     const handleProductSelect = (product: Product) => {
-        setSaleItems(prev => {
-            const existingItemIndex = prev.findIndex(item => item.productId === product.id && !item.isReturn);
-            if(existingItemIndex > -1) {
-                const updatedItems = [...prev];
-                updatedItems[existingItemIndex].quantity += 1;
-                return updatedItems;
-            }
+        const newItems = [...saleItems];
+        const existingItemIndex = newItems.findIndex(item => item.productId === product.id && !item.isReturn);
+        if(existingItemIndex > -1) {
+            newItems[existingItemIndex].quantity += 1;
+        } else {
             const newItem: SaleItem = {
                 productId: product.id,
                 name: product.name,
@@ -225,8 +237,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                 price: priceMode === 'B2B' ? product.b2bPrice : product.b2cPrice,
                 isReturn: false,
             };
-            return [...prev, newItem];
-        });
+            newItems.push(newItem);
+        }
+        onSessionUpdate({ saleItems: newItems });
         setSearchTerm('');
     };
 
@@ -268,7 +281,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
     const handleItemUpdate = (index: number, field: keyof SaleItem, value: any) => {
         const updatedItems = [...saleItems];
         (updatedItems[index] as any)[field] = value;
-        setSaleItems(updatedItems);
+        onSessionUpdate({ saleItems: updatedItems });
         
         if (field === 'price') {
             const item = updatedItems[index];
@@ -283,7 +296,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
     };
     
     const handleItemRemove = (index: number) => {
-        setSaleItems(prev => prev.filter((_, i) => i !== index));
+        onSessionUpdate({ saleItems: saleItems.filter((_, i) => i !== index) });
     };
 
     const handleCustomerNameKeydown = (e: React.KeyboardEvent) => {
@@ -314,20 +327,29 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         }
     };
 
-    const { subtotal, taxAmount, grandTotal, appliedBalance } = useMemo(() => {
+    const { subtotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited } = useMemo(() => {
         const subtotal = saleItems.reduce((acc, item) => {
             const itemTotal = item.quantity * item.price;
             return acc + (item.isReturn ? -itemTotal : itemTotal);
         }, 0);
         const taxAmount = subtotal * (taxPercent / 100);
-        const totalBeforeCredit = subtotal + taxAmount;
+        const grandTotal = subtotal + taxAmount;
         
-        const appliedBalance = balanceApplied && activeCustomer ? Math.min(activeCustomer.balance, totalBeforeCredit) : 0;
+        const previousBalance = activeCustomer?.balance ?? 0;
+        const totalDue = previousBalance + grandTotal;
+
+        const isEdited = editedNewBalance !== '';
+        const parsedEdited = parseFloat(editedNewBalance);
         
-        const grandTotal = totalBeforeCredit - appliedBalance;
+        // If edited and is a valid number, use it. Otherwise, default behavior is customer pays current bill, so new balance is previous balance.
+        const finalNewBalance = isEdited && !isNaN(parsedEdited) 
+            ? parsedEdited
+            : previousBalance;
+            
+        const amountPaidForInvoice = totalDue - finalNewBalance;
         
-        return { subtotal, taxAmount, grandTotal, appliedBalance };
-    }, [saleItems, taxPercent, activeCustomer, balanceApplied]);
+        return { subtotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited };
+    }, [saleItems, taxPercent, activeCustomer, editedNewBalance]);
 
     const handlePreviewClick = () => {
         if (saleItems.length === 0) {
@@ -344,7 +366,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             grandTotal,
             languageMode,
             previousBalance: activeCustomer?.balance ?? 0,
-            appliedBalance
+            amountPaid: amountPaidForInvoice,
+            newBalance: finalNewBalance,
+            isBalanceEdited: isEdited && !isNaN(parseFloat(editedNewBalance)),
         });
     };
 
@@ -353,14 +377,31 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             <main className="new-sale-layout">
                 <section className="sale-main" aria-labelledby="sale-heading">
                     <h2 id="sale-heading" className="sr-only">New Sale</h2>
+
+                    <div className="settings-toggles-top">
+                        <div className="toggle-switch">
+                            {[0, 1, 2].map(index => (
+                                <button key={index} className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`} onClick={() => onBillChange(index)}>{index + 1}</button>
+                            ))}
+                        </div>
+                        <div className="toggle-switch">
+                            <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
+                            <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
+                        </div>
+                        <div className="toggle-switch">
+                            <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English'})}>English</button>
+                            <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
+                        </div>
+                    </div>
+
                     <div className="customer-details">
                          <div className="form-group">
                             <label htmlFor="customer-name">Customer Name</label>
-                            <input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => setCustomerName(e.target.value)} onKeyDown={handleCustomerNameKeydown} />
+                            <input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value })} onKeyDown={handleCustomerNameKeydown} />
                         </div>
                         <div className="form-group">
                             <label htmlFor="customer-mobile">Customer Mobile Number</label>
-                            <input id="customer-mobile" type="text" className="input-field" ref={mobileInputRef} value={customerMobile} onChange={e => setCustomerMobile(e.target.value)} onKeyDown={handleMobileKeydown} />
+                            <input id="customer-mobile" type="text" className="input-field" ref={mobileInputRef} value={customerMobile} onChange={e => onSessionUpdate({ customerMobile: e.target.value })} onKeyDown={handleMobileKeydown} />
                         </div>
                     </div>
 
@@ -473,67 +514,49 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                 </section>
 
                 <aside className="sale-sidebar">
-                    {activeCustomer && (
-                        <div className="customer-balance-section">
-                            <h3 className="sidebar-section-title">Customer Balance</h3>
+                     <div className="form-group">
+                        <label htmlFor="tax-percent">Tax %</label>
+                        <input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} />
+                    </div>
+
+                    <div className="totals-summary">
+                        {(activeCustomer && activeCustomer.balance !== 0) && (
                             <div className="total-row">
                                 <span>Previous Balance</span>
                                 <span>{formatCurrency(activeCustomer.balance)}</span>
                             </div>
-                            <button 
-                                className="apply-balance-button"
-                                disabled={balanceApplied || activeCustomer.balance <= 0}
-                                onClick={() => setBalanceApplied(true)}
-                            >
-                                {balanceApplied ? 'Balance Applied' : 'Apply Balance'}
-                            </button>
-                        </div>
-                    )}
-                     <div className="form-group">
-                        <label htmlFor="tax-percent">Tax %</label>
-                        <input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => setTaxPercent(parseFloat(e.target.value) || 0)} />
-                    </div>
+                        )}
 
-                    <div className="totals-summary">
-                        <div className="total-row">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
-                        </div>
                         {taxPercent > 0 && (
                             <div className="total-row">
                                 <span>Tax ({taxPercent}%)</span>
                                 <span>{formatCurrency(taxAmount)}</span>
                             </div>
                         )}
-                        {appliedBalance > 0 && (
-                             <div className="total-row credit-row">
-                                <span>Credit Applied</span>
-                                <span>- {formatCurrency(appliedBalance)}</span>
-                            </div>
-                        )}
-                        <div className="total-row grand-total">
+                        <div className="total-row">
                             <span>Grand Total</span>
                             <span>{formatCurrency(grandTotal)}</span>
+                        </div>
+                        <div className="total-row total-due-row">
+                            <span>Total Due</span>
+                            <span>{formatCurrency((activeCustomer?.balance ?? 0) + grandTotal)}</span>
+                        </div>
+                        
+                        <div className="total-row grand-total">
+                            <span>New Balance Due</span>
+                            <input
+                                type="number"
+                                className="input-field"
+                                value={editedNewBalance}
+                                onChange={e => onSessionUpdate({ editedNewBalance: e.target.value })}
+                                placeholder={formatCurrency(activeCustomer?.balance ?? 0)}
+                                step="0.01"
+                                aria-label="New Balance Due"
+                            />
                         </div>
                         <button className="finalize-button" onClick={handlePreviewClick}>Preview Invoice</button>
                     </div>
 
-                    <div className="settings-toggles">
-                        <div className="toggle-group">
-                            <label>Price</label>
-                            <div className="toggle-switch">
-                                <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => setPriceMode('B2C')}>B2C</button>
-                                <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => setPriceMode('B2B')}>B2B</button>
-                            </div>
-                        </div>
-                        <div className="toggle-group">
-                            <label>Language</label>
-                            <div className="toggle-switch">
-                                <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => setLanguageMode('English')}>English</button>
-                                <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => setLanguageMode('Tamil')}>Tamil</button>
-                            </div>
-                        </div>
-                    </div>
                 </aside>
             </main>
         </div>
@@ -648,15 +671,46 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
 type InvoicePageProps = {
     saleData: SaleData | null;
     onNavigate: (page: string) => void;
-    invoiceFooter: string;
+    settings: AppSettings;
+    onSettingsChange: (settings: AppSettings) => void;
     onConfirmFinalizeSale: () => void;
     isFinalized: boolean;
+    margins: { top: number; right: number; bottom: number; left: number };
+    onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
+    offsets: { header: number; footer: number };
+    onOffsetsChange: (offsets: { header: number; footer: number }) => void;
 };
-const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoiceFooter, onConfirmFinalizeSale, isFinalized }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ 
+    saleData, onNavigate, settings, onSettingsChange, onConfirmFinalizeSale, isFinalized, 
+    margins, onMarginsChange, offsets, onOffsetsChange 
+}) => {
     const [paperSize, setPaperSize] = useState('4inch');
     const [fontSize, setFontSize] = useState('medium');
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
     const invoiceRef = useRef<HTMLDivElement>(null);
+
+    const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
+    const [isTitleEditing, setIsTitleEditing] = useState(false);
+    const [isFooterEditing, setIsFooterEditing] = useState(false);
+
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    const footerInputRef = useRef<HTMLInputElement>(null);
+    
+    const { invoiceFooter } = settings;
+
+    useEffect(() => {
+        if (isTitleEditing && titleInputRef.current) {
+            titleInputRef.current.focus();
+            titleInputRef.current.select();
+        }
+    }, [isTitleEditing]);
+
+    useEffect(() => {
+        if (isFooterEditing && footerInputRef.current) {
+            footerInputRef.current.focus();
+            footerInputRef.current.select();
+        }
+    }, [isFooterEditing]);
 
     useEffect(() => {
         if (saleData?.customerMobile) {
@@ -676,11 +730,19 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoice
     
     const { 
         customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode,
-        previousBalance, appliedBalance, newBalance 
+        grandTotal, previousBalance, amountPaid, newBalance, isBalanceEdited
     } = saleData;
 
     const handlePrint = () => {
         window.print();
+    };
+    
+    const handleMarginChange = (side: keyof typeof margins, value: string) => {
+        onMarginsChange({ ...margins, [side]: parseInt(value, 10) || 0 });
+    };
+    
+    const handleOffsetChange = (type: keyof typeof offsets, value: string) => {
+        onOffsetsChange({ ...offsets, [type]: parseInt(value, 10) || 0 });
     };
 
     const handleSaveAsPdf = async () => {
@@ -715,14 +777,13 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoice
             message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = ${formatCurrency(itemTotal)} ${item.isReturn ? '(Return)' : ''}\n`;
         });
         message += `\n*Summary:*\n`;
-        message += `Subtotal: ${formatNumberForInvoice(subtotal)}\n`;
         if (taxPercent > 0) {
             message += `Tax (${taxPercent}%): ${formatNumberForInvoice(taxAmount)}\n`;
         }
-        if (appliedBalance > 0) {
-             message += `Credit Applied: -${formatCurrency(appliedBalance)}\n`;
+        message += `Grand Total: ${formatCurrency(grandTotal)}\n`;
+        if (previousBalance !== 0) {
+            message += `Previous Balance: ${formatCurrency(previousBalance)}\n`;
         }
-        message += `*Current Sale Total: ${formatCurrency(subtotal + taxAmount)}*\n\n`;
         message += `*New Balance Due: ${formatCurrency(newBalance)}*\n\n`;
         message += `${invoiceFooter}`;
 
@@ -733,11 +794,26 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoice
 
     return (
         <div className="page-container invoice-page-container">
-            <div className={`invoice-paper size-${paperSize} font-${fontSize}`} ref={invoiceRef}>
+            <div 
+                className={`invoice-paper size-${paperSize} font-${fontSize}`} 
+                ref={invoiceRef}
+                style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}
+            >
                 <div className="printable-area">
-                    <header className="invoice-header">
-                        <h2>Invoice</h2>
-                        <p>BillEase POS</p>
+                    <header className="invoice-header" style={{ transform: `translateY(${offsets.header}px)` }}>
+                        {isTitleEditing ? (
+                            <input
+                                ref={titleInputRef}
+                                type="text"
+                                value={invoiceTitle}
+                                onChange={e => setInvoiceTitle(e.target.value)}
+                                onBlur={() => setIsTitleEditing(false)}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }}
+                                className="invoice-title-input"
+                            />
+                        ) : (
+                            <h2 onDoubleClick={() => setIsTitleEditing(true)} title="Double-click to edit">{invoiceTitle}</h2>
+                        )}
                     </header>
                     <section className="invoice-customer">
                         {(customerName || customerMobile) && (
@@ -765,57 +841,74 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoice
                                    <td>{item.name} {item.isReturn && `(${languageMode === 'English' ? 'Return' : 'திரும்ப'})`}</td>
                                    <td>{formatQuantityForInvoice(item.quantity)}</td>
                                    <td>{formatNumberForInvoice(item.price)}</td>
-                                   <td>{formatCurrency(item.quantity * item.price)}</td>
+                                   <td>{formatNumberForInvoice(item.quantity * item.price)}</td>
                                </tr>
                             ))}
                         </tbody>
                     </table>
-                    <footer className="invoice-footer">
+                    <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}>
                         <div className="invoice-totals">
-                             <div className="total-row">
-                                <span>{languageMode === 'English' ? 'Subtotal' : 'மொத்த தொகை'}</span>
-                                <span>{formatNumberForInvoice(subtotal)}</span>
-                            </div>
                             {taxPercent > 0 && (
                                 <div className="total-row">
                                     <span>{languageMode === 'English' ? `Tax (${taxPercent}%)` : `வரி (${taxPercent}%)`}</span>
                                     <span>{formatNumberForInvoice(taxAmount)}</span>
                                 </div>
                             )}
-                             <div className="total-row grand-total">
-                                <span>{languageMode === 'English' ? 'Current Sale Total' : 'தற்போதைய விற்பனை'}</span>
-                                <span>{formatCurrency(subtotal + taxAmount)}</span>
+                            <div className="total-row grand-total">
+                                <span>{languageMode === 'English' ? 'Grand Total' : 'மொத்தத் தொகை'}</span>
+                                <span>{formatCurrency(grandTotal)}</span>
                             </div>
                             <div className="balance-summary">
-                                 <div className="total-row">
-                                    <span>{languageMode === 'English' ? 'Previous Balance' : 'முந்தைய இருப்பு'}</span>
-                                    <span>{formatCurrency(previousBalance)}</span>
-                                </div>
-                                {appliedBalance > 0 && (
+                                {previousBalance !== 0 && (
                                     <div className="total-row">
-                                        <span>{languageMode === 'English' ? 'Credit Applied' : 'கடன் பயன்படுத்தப்பட்டது'}</span>
-                                        <span>- {formatCurrency(appliedBalance)}</span>
+                                        <span>{languageMode === 'English' ? 'Previous Balance' : 'முந்தைய இருப்பு'}</span>
+                                        <span>{formatCurrency(previousBalance)}</span>
                                     </div>
                                 )}
-                                 <div className="total-row grand-total">
-                                    <span>{languageMode === 'English' ? 'New Balance Due' : 'புதிய இருப்பு'}</span>
-                                    <span>{formatCurrency(newBalance)}</span>
-                                </div>
+                                {(isFinalized || isBalanceEdited) && (
+                                    <div className="total-row grand-total">
+                                        <span>{languageMode === 'English' ? 'New Balance Due' : 'புதிய இருப்பு'}</span>
+                                        <span>{formatCurrency(newBalance)}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        {invoiceFooter && <p className="invoice-custom-footer">{invoiceFooter}</p>}
+                        {invoiceFooter && (
+                            isFooterEditing ? (
+                                <input
+                                    ref={footerInputRef}
+                                    type="text"
+                                    value={invoiceFooter}
+                                    onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })}
+                                    onBlur={() => setIsFooterEditing(false)}
+                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsFooterEditing(false); }}
+                                    className="invoice-footer-input"
+                                />
+                            ) : (
+                                <p className="invoice-custom-footer" onDoubleClick={() => setIsFooterEditing(true)} title="Double-click to edit">
+                                    {invoiceFooter}
+                                </p>
+                            )
+                        )}
                     </footer>
                 </div>
             </div>
             <div className="invoice-actions">
-                <button onClick={() => onNavigate('New Sale')} className="action-button-secondary" disabled={isFinalized}>Back to Sale</button>
-                 <button 
-                    onClick={onConfirmFinalizeSale} 
-                    className="finalize-button"
-                    disabled={isFinalized}
-                >
-                    {isFinalized ? 'Sale Recorded ✓' : 'Finalize Sale'}
-                </button>
+                <div className="invoice-main-actions">
+                    <button onClick={handlePrint} className="action-button-primary">Print</button>
+                    <button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button>
+                    <div className="whatsapp-group">
+                        <input 
+                            type="tel" 
+                            className="input-field"
+                            placeholder="WhatsApp Number" 
+                            value={whatsAppNumber}
+                            onChange={e => setWhatsAppNumber(e.target.value)}
+                        />
+                         <button onClick={handleSendWhatsApp} className="action-button-primary">Send</button>
+                    </div>
+                </div>
+
                 <div className="invoice-controls">
                      <div className="form-group">
                         <label htmlFor="paper-size">Paper Size</label>
@@ -833,20 +926,29 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, invoice
                             <option value="large">Large</option>
                         </select>
                     </div>
-                </div>
-                <div className="invoice-main-actions">
-                    <button onClick={handlePrint} className="action-button-primary">Print</button>
-                    <button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button>
-                    <div className="whatsapp-group">
-                        <input 
-                            type="tel" 
-                            className="input-field"
-                            placeholder="WhatsApp Number" 
-                            value={whatsAppNumber}
-                            onChange={e => setWhatsAppNumber(e.target.value)}
-                        />
-                         <button onClick={handleSendWhatsApp} className="action-button-primary">Send</button>
+                    <div className="margin-controls">
+                        <label>Margins (px)</label>
+                        <input type="number" title="Top" aria-label="Top Margin" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} />
+                        <input type="number" title="Right" aria-label="Right Margin" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} />
+                        <input type="number" title="Bottom" aria-label="Bottom Margin" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} />
+                        <input type="number" title="Left" aria-label="Left Margin" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} />
                     </div>
+                    <div className="offset-controls">
+                        <label>Offsets (px)</label>
+                        <input type="number" title="Header Y" aria-label="Header Y Offset" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} />
+                        <input type="number" title="Footer Y" aria-label="Footer Y Offset" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} />
+                    </div>
+                </div>
+                
+                <div className="finalize-actions-group">
+                    <button 
+                        onClick={onConfirmFinalizeSale} 
+                        className="finalize-button"
+                        disabled={isFinalized}
+                    >
+                        {isFinalized ? 'Sale Recorded ✓' : 'Finalize Sale'}
+                    </button>
+                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary" disabled={isFinalized}>Back to Sale</button>
                 </div>
             </div>
         </div>
@@ -1052,8 +1154,8 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ salesHistory, onViewInvoice }
 
 // --- SETTINGS PAGE COMPONENT ---
 type SettingsPageProps = {
-    theme: 'dark' | 'light';
-    onThemeChange: (theme: 'dark' | 'light') => void;
+    theme: Theme;
+    onThemeChange: (theme: Theme) => void;
     settings: AppSettings;
     onSettingsChange: (settings: AppSettings) => void;
 };
@@ -1062,6 +1164,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
     const handleFooterChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         onSettingsChange({ ...settings, invoiceFooter: e.target.value });
     };
+    
+    const themes: {id: Theme, name: string}[] = [
+        {id: 'light', name: 'Light'},
+        {id: 'dark', name: 'Dark'},
+        {id: 'ocean-blue', name: 'Ocean Blue'},
+        {id: 'forest-green', name: 'Forest Green'},
+        {id: 'sunset-orange', name: 'Sunset Orange'},
+    ];
 
     return (
         <div className="page-container">
@@ -1071,9 +1181,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
                     <h3>Interface Theme</h3>
                     <div className="toggle-group">
                         <label>Theme</label>
-                        <div className="toggle-switch">
-                            <button className={`toggle-button ${theme === 'light' ? 'active' : ''}`} onClick={() => onThemeChange('light')}>Light</button>
-                            <button className={`toggle-button ${theme === 'dark' ? 'active' : ''}`} onClick={() => onThemeChange('dark')}>Dark</button>
+                        <div className="toggle-switch theme-selector">
+                            {themes.map(t => (
+                                <button key={t.id} className={`toggle-button ${theme === t.id ? 'active' : ''}`} onClick={() => onThemeChange(t.id)}>{t.name}</button>
+                            ))}
                         </div>
                     </div>
                  </div>
@@ -1161,9 +1272,44 @@ const App = () => {
     const [salesHistory, setSalesHistory] = useState<SaleData[]>([]);
     const [pendingSaleData, setPendingSaleData] = useState<SaleData | null>(null);
     const [isSaleFinalized, setIsSaleFinalized] = useState<boolean>(false);
-    const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+    const [theme, setTheme] = useState<Theme>('dark');
     const [appSettings, setAppSettings] = useState<AppSettings>({ invoiceFooter: 'Thank you for your business!' });
+    const [invoiceMargins, setInvoiceMargins] = useState({ top: 20, right: 20, bottom: 20, left: 20 });
+    const [invoiceTextOffsets, setInvoiceTextOffsets] = useState({ header: 0, footer: 0 });
     const nextProductId = useRef(Math.max(...initialProducts.map(p => p.id)) + 1);
+
+    const initialSaleSession: SaleSession = useMemo(() => ({
+        customerName: '',
+        customerMobile: '',
+        priceMode: 'B2C',
+        languageMode: 'English',
+        taxPercent: 0,
+        saleItems: [],
+        editedNewBalance: '',
+    }), []);
+
+    const [saleSessions, setSaleSessions] = useState<SaleSession[]>([
+        {...initialSaleSession},
+        {...initialSaleSession},
+        {...initialSaleSession},
+    ]);
+    const [activeBillIndex, setActiveBillIndex] = useState(0);
+
+    const updateCurrentSaleSession = (updates: Partial<SaleSession>) => {
+        setSaleSessions(prev => {
+            const newSessions = [...prev];
+            newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates };
+            return newSessions;
+        });
+    };
+
+    const resetCurrentSaleSession = () => {
+        setSaleSessions(prev => {
+            const newSessions = [...prev];
+            newSessions[activeBillIndex] = {...initialSaleSession};
+            return newSessions;
+        });
+    }
 
     useEffect(() => {
         document.body.className = `theme-${theme}`;
@@ -1188,14 +1334,9 @@ const App = () => {
         setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
     };
 
-    const handlePreviewInvoice = (saleData: Omit<SaleData, 'newBalance' | 'id' | 'date'>) => {
-        const { grandTotal, previousBalance, appliedBalance } = saleData;
-        const newDebtFromSale = grandTotal;
-        const newBalance = (previousBalance - appliedBalance) + newDebtFromSale;
-        
+    const handlePreviewInvoice = (saleData: Omit<SaleData, 'id' | 'date'>) => {
         const completeSaleData: SaleData = { 
             ...saleData, 
-            newBalance, 
             id: `sale-${Date.now()}`,
             date: new Date()
         };
@@ -1233,6 +1374,7 @@ const App = () => {
         
         setSalesHistory(prev => [pendingSaleData, ...prev]);
         setIsSaleFinalized(true);
+        resetCurrentSaleSession();
     };
     
     const handleNavigate = (page: string) => {
@@ -1240,7 +1382,9 @@ const App = () => {
         if (page === 'Balance Due') {
             targetPage = 'Customer Management';
         }
-        if (page === 'New Sale') {
+        if (page === 'New Sale' && currentPage === 'Invoice' && !isSaleFinalized) {
+             // Coming back from an unfinalized invoice preview, do nothing to state
+        } else if (page === 'New Sale') {
             setPendingSaleData(null);
             setIsSaleFinalized(false);
         }
@@ -1260,11 +1404,33 @@ const App = () => {
     const renderPage = () => {
         switch (currentPage) {
             case 'New Sale':
-                return <NewSalePage products={products} customers={customers} onPreviewInvoice={handlePreviewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} />;
+                return <NewSalePage 
+                    products={products} 
+                    customers={customers} 
+                    onPreviewInvoice={handlePreviewInvoice} 
+                    onAddProduct={handleAddProduct} 
+                    onUpdateProduct={handleUpdateProduct} 
+                    userRole={currentUser.role} 
+                    sessionData={saleSessions[activeBillIndex]}
+                    onSessionUpdate={updateCurrentSaleSession}
+                    activeBillIndex={activeBillIndex}
+                    onBillChange={setActiveBillIndex}
+                />;
             case 'Product Inventory':
                 return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} />;
             case 'Invoice':
-                 return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} invoiceFooter={appSettings.invoiceFooter} onConfirmFinalizeSale={handleConfirmFinalizeSale} isFinalized={isSaleFinalized} />;
+                 return <InvoicePage 
+                    saleData={pendingSaleData} 
+                    onNavigate={handleNavigate} 
+                    settings={appSettings}
+                    onSettingsChange={setAppSettings} 
+                    onConfirmFinalizeSale={handleConfirmFinalizeSale} 
+                    isFinalized={isSaleFinalized}
+                    margins={invoiceMargins}
+                    onMarginsChange={setInvoiceMargins}
+                    offsets={invoiceTextOffsets}
+                    onOffsetsChange={setInvoiceTextOffsets}
+                 />;
             case 'Customer Management':
                 return <CustomerManagementPage customers={customers} />;
             case 'Reports':
@@ -1274,7 +1440,18 @@ const App = () => {
             case 'Settings':
                  return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} />;
             default:
-                return <NewSalePage products={products} customers={customers} onPreviewInvoice={handlePreviewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role}/>;
+                return <NewSalePage 
+                    products={products} 
+                    customers={customers} 
+                    onPreviewInvoice={handlePreviewInvoice} 
+                    onAddProduct={handleAddProduct} 
+                    onUpdateProduct={handleUpdateProduct} 
+                    userRole={currentUser.role}
+                    sessionData={saleSessions[activeBillIndex]}
+                    onSessionUpdate={updateCurrentSaleSession}
+                    activeBillIndex={activeBillIndex}
+                    onBillChange={setActiveBillIndex}
+                />;
         }
     };
 
