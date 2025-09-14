@@ -69,7 +69,7 @@ interface SaleSession {
     editedNewBalance: string;
 }
 
-type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange';
+type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord';
 
 
 // --- MOCK DATA (DATABASE SIMULATION) ---
@@ -379,18 +379,20 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                     <h2 id="sale-heading" className="sr-only">New Sale</h2>
 
                     <div className="settings-toggles-top">
-                        <div className="toggle-switch">
+                        <div className="toggles-group-left">
+                           <div className="toggle-switch">
+                                <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
+                                <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
+                            </div>
+                            <div className="toggle-switch">
+                                <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English'})}>English</button>
+                                <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
+                            </div>
+                        </div>
+                         <div className="toggle-switch">
                             {[0, 1, 2].map(index => (
                                 <button key={index} className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`} onClick={() => onBillChange(index)}>{index + 1}</button>
                             ))}
-                        </div>
-                        <div className="toggle-switch">
-                            <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
-                            <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
-                        </div>
-                        <div className="toggle-switch">
-                            <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English'})}>English</button>
-                            <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
                         </div>
                     </div>
 
@@ -604,6 +606,17 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             nextRef.current?.focus();
         }
     };
+    
+    const handleBulkAdd = () => {
+        alert("This is a demo of the bulk add feature. In a real app, you would be prompted to upload two PDF files. Here, we will add a few sample products to the inventory.");
+        const sampleProducts = [
+            { name: 'Organic Honey', nameTamil: 'ஆர்கானிக் தேன்', b2bPrice: 5.50, b2cPrice: 6.50, stock: 25 },
+            { name: 'Almond Flour', nameTamil: 'பாதாம் மாவு', b2bPrice: 7.00, b2cPrice: 8.25, stock: 15 },
+            { name: 'Sparkling Water', nameTamil: ' игристые воды', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50 },
+            { name: 'Instant Coffee', nameTamil: 'காபி', b2bPrice: 4.00, b2cPrice: 4.75, stock: 40 },
+        ];
+        sampleProducts.forEach(p => onAddProduct(p));
+    };
 
     return (
         <div className="page-container">
@@ -659,6 +672,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                            <input ref={stockRef} id="new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, submitRef)} />
                         </div>
                         <button ref={submitRef} type="submit" className="finalize-button">Add Product</button>
+                        <button type="button" className="action-button-secondary bulk-add-button" onClick={handleBulkAdd}>Add Bulk Products from PDF</button>
                     </form>
                 </div>
             </div>
@@ -1171,6 +1185,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
         {id: 'ocean-blue', name: 'Ocean Blue'},
         {id: 'forest-green', name: 'Forest Green'},
         {id: 'sunset-orange', name: 'Sunset Orange'},
+        {id: 'monokai', name: 'Monokai'},
+        {id: 'nord', name: 'Nord'},
     ];
 
     return (

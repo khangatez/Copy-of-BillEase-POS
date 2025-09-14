@@ -77,6 +77,33 @@
   --input-disabled-bg: #4a324d;
 }
 
+.theme-monokai {
+  --background-primary: #272822;
+  --background-secondary: #2d2e26;
+  --background-tertiary: #3E3D32;
+  --text-primary: #f8f8f2;
+  --text-secondary: #9e9e9e;
+  --accent-primary: #f92672;
+  --accent-primary-hover: #d32060;
+  --border-color: #49483e;
+  --danger-color: #f92672;
+  --success-color: #a6e22e;
+  --input-disabled-bg: #33342b;
+}
+
+.theme-nord {
+  --background-primary: #2e3440;
+  --background-secondary: #3b4252;
+  --background-tertiary: #434c5e;
+  --text-primary: #d8dee9;
+  --text-secondary: #a3b2cc;
+  --accent-primary: #88c0d0;
+  --accent-primary-hover: #6ea9bc;
+  --border-color: #4c566a;
+  --danger-color: #bf616a;
+  --success-color: #a3be8c;
+  --input-disabled-bg: #353c4a;
+}
 
 * {
   box-sizing: border-box;
@@ -307,7 +334,16 @@ body {
     display: flex;
     gap: var(--padding-md);
     flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
 }
+
+.toggles-group-left {
+    display: flex;
+    gap: var(--padding-md);
+    flex-wrap: wrap;
+}
+
 
 .product-search-container {
   position: relative;
@@ -568,6 +604,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--padding-md);
+}
+
+.bulk-add-button {
+    margin-top: var(--padding-sm);
 }
 
 
@@ -922,6 +962,8 @@ body {
 }
 .theme-selector {
     border-radius: var(--border-radius);
+    flex-wrap: wrap;
+    gap: var(--padding-sm);
 }
 .theme-selector .toggle-button {
     border-radius: calc(var(--border-radius) - 2px);
