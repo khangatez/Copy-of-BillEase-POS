@@ -2,6 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import 'pdfjs-dist'; // Import for its side-effect of attaching to the window object
+
+// --- PDF.js Worker Configuration ---
+// The UMD build of pdfjs-dist attaches the library to the window object.
+// We import it for its side effect and then retrieve it from the global scope.
+const pdfjs = (window as any).pdfjsLib;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.js`;
+
 
 // --- TYPES ---
 interface Product {
@@ -565,12 +573,222 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
     );
 };
 
+// --- BULK ADD MODAL COMPONENT ---
+type BulkAddModalProps = {
+    onClose: () => void;
+    onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
+};
+
+type ParsedProductData = {
+    name: string;
+    nameTamil: string;
+    price: number;
+};
+
+const BulkAddModal: React.FC<BulkAddModalProps> = ({ onClose, onAddBulkProducts }) => {
+    const [b2bFile, setB2bFile] = useState<File | null>(null);
+    const [b2cFile, setB2cFile] = useState<File | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
+
+    const parsePdfForProducts = async (file: File): Promise<ParsedProductData[]> => {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+        const products: ParsedProductData[] = [];
+        let headerY = -1;
+        let columnBoundaries: { [key: string]: { start: number; end: number } } = {};
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const items = textContent.items as any[];
+
+            const lines = items.reduce((acc, item) => {
+                const y = Math.round(item.transform[5]);
+                if (!acc[y]) acc[y] = [];
+                acc[y].push(item);
+                return acc;
+            }, {} as { [key: number]: any[] });
+
+            if (headerY === -1) {
+                const sortedLines = Object.entries(lines).sort(([y1], [y2]) => parseInt(y2) - parseInt(y1));
+                for (const [y, lineItems] of sortedLines) {
+                    // FIX: Property 'map' does not exist on type 'unknown'. Explicitly cast `lineItems` to `any[]`.
+                    const lineText = (lineItems as any[]).map(item => item.str.toLowerCase()).join('');
+                    if (lineText.includes('description') && lineText.includes('sal.rate')) {
+                        headerY = parseInt(y);
+                        
+                        // FIX: Property 'reduce' does not exist on type 'unknown'. Explicitly cast `lineItems` to `any[]`.
+                        const consolidatedHeaders = (lineItems as any[]).reduce((acc, item) => {
+                            if (acc.length > 0 && Math.abs(item.transform[4] - (acc[acc.length-1].x + acc[acc.length-1].width)) < 5) {
+                                acc[acc.length-1].text += ` ${item.str}`;
+                                acc[acc.length-1].width += item.width;
+                            } else {
+                                acc.push({ text: item.str, x: item.transform[4], width: item.width });
+                            }
+                            return acc;
+                        }, [] as { text: string; x: number; width: number }[]);
+
+                        consolidatedHeaders.forEach(header => {
+                            const headerText = header.text.toLowerCase().replace(/\s/g, '');
+                            if (headerText.includes('description')) {
+                                columnBoundaries['description'] = { start: header.x, end: header.x + header.width };
+                            } else if (headerText.includes('sal.rate')) {
+                                columnBoundaries['salRate'] = { start: header.x, end: header.x + header.width };
+                            }
+                        });
+                        break;
+                    }
+                }
+            }
+             if (!columnBoundaries.description || !columnBoundaries.salRate) {
+                throw new Error("Could not find 'Description' and 'Sal.Rate' columns in PDF.");
+            }
+
+            const dataLines = Object.entries(lines)
+                .filter(([y]) => parseInt(y) < headerY)
+                .sort(([y1], [y2]) => parseInt(y2) - parseInt(y1));
+
+            for (const [, lineItems] of dataLines) {
+                let description = '';
+                let priceStr = '';
+
+                // Reconstruct line text based on spacing
+                // FIX: Property 'sort' does not exist on type 'unknown'. Explicitly cast `lineItems` to `any[]`.
+                const sortedLineItems = (lineItems as any[]).sort((a,b) => a.transform[4] - b.transform[4]);
+                
+                sortedLineItems.forEach(item => {
+                    const itemCenter = item.transform[4] + item.width / 2;
+                    if (itemCenter >= columnBoundaries.description.start && itemCenter <= columnBoundaries.description.end) {
+                         description += ` ${item.str}`;
+                    } else if (itemCenter >= columnBoundaries.salRate.start && itemCenter <= columnBoundaries.salRate.end) {
+                        priceStr += item.str;
+                    }
+                });
+                
+                description = description.trim();
+                const price = parseFloat(priceStr);
+
+                if (description && !isNaN(price)) {
+                    const tamilRegex = /[\u0B80-\u0BFF]/;
+                    let splitIndex = -1;
+                    
+                    for (let j = 0; j < description.length; j++) {
+                        if (tamilRegex.test(description[j])) {
+                            splitIndex = j;
+                            break;
+                        }
+                    }
+
+                    const name = (splitIndex !== -1 ? description.substring(0, splitIndex) : description).trim();
+                    const nameTamil = (splitIndex !== -1 ? description.substring(splitIndex) : '').trim();
+
+                    if(name) {
+                        products.push({ name, nameTamil, price });
+                    }
+                }
+            }
+        }
+        return products;
+    };
+
+    const handleProcessPdfs = async () => {
+        if (!b2bFile || !b2cFile) {
+            alert('Please upload both B2B and B2C PDF files.');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            setStatusMessage('Parsing B2B price list...');
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const b2bData = await parsePdfForProducts(b2bFile);
+
+            setStatusMessage('Parsing B2C price list...');
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const b2cData = await parsePdfForProducts(b2cFile);
+            
+            setStatusMessage('Merging data...');
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const b2cPriceMap = new Map(b2cData.map(p => [p.name.toLowerCase(), p.price]));
+            const newProducts: Omit<Product, 'id' | 'stock'>[] = [];
+
+            for (const b2bProduct of b2bData) {
+                const b2cPrice = b2cPriceMap.get(b2bProduct.name.toLowerCase());
+                if (b2cPrice !== undefined) {
+                    newProducts.push({
+                        name: b2bProduct.name,
+                        nameTamil: b2bProduct.nameTamil,
+                        b2bPrice: b2bProduct.price,
+                        b2cPrice: b2cPrice,
+                    });
+                }
+            }
+            
+            setStatusMessage('Adding products to inventory...');
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const result = await onAddBulkProducts(newProducts);
+            alert(`Bulk add complete!\n\n${result.added} new products added.\n${result.skipped} products were skipped because they already exist.`);
+            onClose();
+
+        } catch (error) {
+            console.error('Error processing PDFs:', error);
+            alert(`An error occurred: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsLoading(false);
+            setStatusMessage('');
+        }
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3>Add Bulk Products from PDF</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+
+                {isLoading ? (
+                    <div className="loading-indicator">
+                        <div className="spinner"></div>
+                        <p>{statusMessage}</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="modal-body">
+                            <label htmlFor="b2b-file-input" className="file-input-group">
+                                <p>Click to upload B2B Price List PDF</p>
+                                <input id="b2b-file-input" type="file" accept=".pdf" onChange={e => setB2bFile(e.target.files?.[0] || null)} />
+                                {b2bFile && <p className="file-name">{b2bFile.name}</p>}
+                            </label>
+
+                            <label htmlFor="b2c-file-input" className="file-input-group">
+                                <p>Click to upload B2C Price List PDF</p>
+                                <input id="b2c-file-input" type="file" accept=".pdf" onChange={e => setB2cFile(e.target.files?.[0] || null)} />
+                                {b2cFile && <p className="file-name">{b2cFile.name}</p>}
+                            </label>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="action-button-secondary" onClick={onClose}>Cancel</button>
+                            <button className="action-button-primary" onClick={handleProcessPdfs} disabled={!b2bFile || !b2cFile}>Process PDFs</button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
 // --- PRODUCT INVENTORY PAGE ---
 type ProductInventoryPageProps = {
     products: Product[];
     onAddProduct: (newProduct: Omit<Product, 'id'>) => void;
+    onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
 };
-const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct }) => {
+const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onAddBulkProducts }) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [newProductName, setNewProductName] = useState('');
     const [newProductNameTamil, setNewProductNameTamil] = useState('');
     const [newProductB2B, setNewProductB2B] = useState(0);
@@ -606,21 +824,16 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             nextRef.current?.focus();
         }
     };
-    
-    const handleBulkAdd = () => {
-        alert("This is a demo of the bulk add feature. In a real app, you would be prompted to upload two PDF files. Here, we will add a few sample products to the inventory.");
-        const sampleProducts = [
-            { name: 'Organic Honey', nameTamil: 'ஆர்கானிக் தேன்', b2bPrice: 5.50, b2cPrice: 6.50, stock: 25 },
-            { name: 'Almond Flour', nameTamil: 'பாதாம் மாவு', b2bPrice: 7.00, b2cPrice: 8.25, stock: 15 },
-            { name: 'Sparkling Water', nameTamil: ' игристые воды', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50 },
-            { name: 'Instant Coffee', nameTamil: 'காபி', b2bPrice: 4.00, b2cPrice: 4.75, stock: 40 },
-        ];
-        sampleProducts.forEach(p => onAddProduct(p));
-    };
 
     return (
         <div className="page-container">
-            <h2 className="page-title">Product Inventory</h2>
+            {isModalOpen && <BulkAddModal onClose={() => setIsModalOpen(false)} onAddBulkProducts={onAddBulkProducts} />}
+            <div className="page-header">
+                <h2 className="page-title">Product Inventory</h2>
+                <button className="action-button-primary" onClick={() => setIsModalOpen(true)}>
+                    Add Bulk Products from PDF
+                </button>
+            </div>
             <div className="inventory-layout">
                 <div className="inventory-list-container">
                      <table className="inventory-table">
@@ -672,7 +885,6 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                            <input ref={stockRef} id="new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, submitRef)} />
                         </div>
                         <button ref={submitRef} type="submit" className="finalize-button">Add Product</button>
-                        <button type="button" className="action-button-secondary bulk-add-button" onClick={handleBulkAdd}>Add Bulk Products from PDF</button>
                     </form>
                 </div>
             </div>
@@ -687,7 +899,7 @@ type InvoicePageProps = {
     onNavigate: (page: string) => void;
     settings: AppSettings;
     onSettingsChange: (settings: AppSettings) => void;
-    onConfirmFinalizeSale: () => void;
+    onConfirmFinalizeSale: () => Promise<void>;
     isFinalized: boolean;
     margins: { top: number; right: number; bottom: number; left: number };
     onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
@@ -706,6 +918,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
     const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
     const [isTitleEditing, setIsTitleEditing] = useState(false);
     const [isFooterEditing, setIsFooterEditing] = useState(false);
+    const [isFinalizing, setIsFinalizing] = useState(false);
 
     const titleInputRef = useRef<HTMLInputElement>(null);
     const footerInputRef = useRef<HTMLInputElement>(null);
@@ -804,6 +1017,11 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
         const encodedMessage = encodeURIComponent(message);
         const url = `https://api.whatsapp.com/send?phone=${whatsAppNumber.replace(/\D/g, '')}&text=${encodedMessage}`;
         window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleFinalize = async () => {
+        setIsFinalizing(true);
+        await onConfirmFinalizeSale();
     };
 
     return (
@@ -956,13 +1174,13 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                 
                 <div className="finalize-actions-group">
                     <button 
-                        onClick={onConfirmFinalizeSale} 
+                        onClick={handleFinalize} 
                         className="finalize-button"
-                        disabled={isFinalized}
+                        disabled={isFinalized || isFinalizing}
                     >
-                        {isFinalized ? 'Sale Recorded ✓' : 'Finalize Sale'}
+                        {isFinalized ? 'Sale Recorded ✓' : (isFinalizing ? 'Recording...' : 'Finalize Sale')}
                     </button>
-                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary" disabled={isFinalized}>Back to Sale</button>
+                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary" disabled={isFinalizing}>Back to Sale</button>
                 </div>
             </div>
         </div>
@@ -1345,6 +1563,27 @@ const App = () => {
         setProducts(prev => [...prev, newProduct]);
         return newProduct;
     };
+
+    const handleAddBulkProducts = async (newProducts: Omit<Product, 'id' | 'stock'>[]): Promise<{added: number, skipped: number}> => {
+        let added = 0;
+        let skipped = 0;
+        const existingNames = new Set(products.map(p => p.name.toLowerCase()));
+        
+        const productsToAdd: Product[] = [];
+
+        newProducts.forEach(p => {
+            if (!existingNames.has(p.name.toLowerCase())) {
+                productsToAdd.push({ ...p, id: nextProductId.current++, stock: 0 });
+                added++;
+            } else {
+                skipped++;
+            }
+        });
+
+        setProducts(prev => [...prev, ...productsToAdd]);
+        
+        return { added, skipped };
+    };
     
     const handleUpdateProduct = (updatedProduct: Product) => {
         setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
@@ -1362,35 +1601,42 @@ const App = () => {
         setCurrentPage('Invoice');
     };
 
-    const handleConfirmFinalizeSale = () => {
+    const handleConfirmFinalizeSale = async () => {
         if (!pendingSaleData || isSaleFinalized) return;
 
-        const { customerMobile, customerName, newBalance, saleItems } = pendingSaleData;
-        
-        const existingCustomer = customers.find(c => c.mobile === customerMobile);
+        return new Promise<void>(resolve => {
+            const { customerMobile, customerName, newBalance, saleItems } = pendingSaleData;
+            
+            const existingCustomer = customers.find(c => c.mobile === customerMobile);
 
-        if (existingCustomer) {
-            setCustomers(prev => prev.map(c => 
-                c.mobile === customerMobile ? { ...c, balance: newBalance, name: customerName || c.name } : c
-            ));
-        } else if (customerMobile) {
-            const newCustomer: Customer = { mobile: customerMobile, name: customerName, balance: newBalance };
-            setCustomers(prev => [...prev, newCustomer]);
-        }
-
-        const productsCopy = [...products];
-        saleItems.forEach(item => {
-            const productIndex = productsCopy.findIndex(p => p.id === item.productId);
-            if (productIndex !== -1) {
-                const stockChange = item.isReturn ? item.quantity : -item.quantity;
-                productsCopy[productIndex].stock += stockChange;
+            if (existingCustomer) {
+                setCustomers(prev => prev.map(c => 
+                    c.mobile === customerMobile ? { ...c, balance: newBalance, name: customerName || c.name } : c
+                ));
+            } else if (customerMobile) {
+                const newCustomer: Customer = { mobile: customerMobile, name: customerName, balance: newBalance };
+                setCustomers(prev => [...prev, newCustomer]);
             }
+
+            const productsCopy = [...products];
+            saleItems.forEach(item => {
+                const productIndex = productsCopy.findIndex(p => p.id === item.productId);
+                if (productIndex !== -1) {
+                    const stockChange = item.isReturn ? item.quantity : -item.quantity;
+                    productsCopy[productIndex].stock += stockChange;
+                }
+            });
+            setProducts(productsCopy);
+            
+            setSalesHistory(prev => [pendingSaleData, ...prev]);
+            setIsSaleFinalized(true);
+            resetCurrentSaleSession();
+            
+            setTimeout(() => {
+                handleNavigate('New Sale');
+                resolve();
+            }, 800);
         });
-        setProducts(productsCopy);
-        
-        setSalesHistory(prev => [pendingSaleData, ...prev]);
-        setIsSaleFinalized(true);
-        resetCurrentSaleSession();
     };
     
     const handleNavigate = (page: string) => {
@@ -1433,7 +1679,7 @@ const App = () => {
                     onBillChange={setActiveBillIndex}
                 />;
             case 'Product Inventory':
-                return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} />;
+                return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} onAddBulkProducts={handleAddBulkProducts} />;
             case 'Invoice':
                  return <InvoicePage 
                     saleData={pendingSaleData} 
