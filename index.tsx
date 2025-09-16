@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import 'pdfjs-dist'; // Import for its side-effect of attaching to the window object
+import { Html5QrcodeScanner } from 'html5-qrcode';
+
 
 // --- PDF.js Worker Configuration ---
 // The UMD build of pdfjs-dist attaches the library to the window object.
@@ -19,6 +21,7 @@ interface Product {
   b2bPrice: number;
   b2cPrice: number;
   stock: number;
+  barcode?: string;
 }
 
 interface Customer {
@@ -41,15 +44,18 @@ interface SaleData {
     customerName: string;
     customerMobile: string;
     saleItems: SaleItem[];
-    subtotal: number;
+    grossTotal: number;
+    returnTotal: number;
+    subtotal: number; // Net Total
     taxAmount: number;
     taxPercent: number;
-    grandTotal: number; // This is current sale total
+    grandTotal: number; // Net Total + Tax
     languageMode: 'English' | 'Tamil';
     previousBalance: number;
     amountPaid: number;
     newBalance: number;
     isBalanceEdited?: boolean;
+    returnReason?: string;
 }
 
 interface Note {
@@ -75,6 +81,7 @@ interface SaleSession {
     taxPercent: number;
     saleItems: SaleItem[];
     editedNewBalance: string;
+    returnReason?: string;
 }
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord';
@@ -82,11 +89,11 @@ type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' 
 
 // --- MOCK DATA (DATABASE SIMULATION) ---
 const initialProducts: Product[] = [
-  { id: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100 },
-  { id: 2, name: 'Banana', nameTamil: 'வாழைப்பழம்', b2bPrice: 0.25, b2cPrice: 0.30, stock: 150 },
-  { id: 3, name: 'Milk 1L', nameTamil: 'பால் 1லி', b2bPrice: 1.00, b2cPrice: 1.20, stock: 8 },
+  { id: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' },
+  { id: 2, name: 'Banana', nameTamil: 'வாழைப்பழம்', b2bPrice: 0.25, b2cPrice: 0.30, stock: 150, barcode: '2222' },
+  { id: 3, name: 'Milk 1L', nameTamil: 'பால் 1லி', b2bPrice: 1.00, b2cPrice: 1.20, stock: 8, barcode: '3333' },
   { id: 4, name: 'Bread Loaf', nameTamil: 'ரொட்டி', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30 },
-  { id: 5, name: 'Cheddar Cheese 200g', nameTamil: 'செடார் சீஸ் 200கி', b2bPrice: 3.50, b2cPrice: 4.00, stock: 40 },
+  { id: 5, name: 'Cheddar Cheese 200g', nameTamil: 'செடார் சீஸ் 200கி', b2bPrice: 3.50, b2cPrice: 4.00, stock: 40, barcode: '5555' },
 ];
 
 const initialCustomers: Customer[] = [
@@ -182,18 +189,21 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
     products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole,
     sessionData, onSessionUpdate, activeBillIndex, onBillChange
 }) => {
-    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, editedNewBalance } = sessionData;
+    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, editedNewBalance, returnReason } = sessionData;
 
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [showAddNew, setShowAddNew] = useState(false);
     const [activeSuggestion, setActiveSuggestion] = useState(-1);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
     
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
 
     const mobileInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const prevSaleItemsLengthRef = useRef(saleItems.length);
+    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
 
     useEffect(() => {
         const foundCustomer = customers.find(c => c.mobile === customerMobile);
@@ -222,15 +232,61 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
 
     useEffect(() => {
         if (searchTerm) {
-            const filtered = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+            const lowercasedTerm = searchTerm.toLowerCase();
+            const filtered = products.filter(p => 
+                p.name.toLowerCase().includes(lowercasedTerm) ||
+                p.barcode === searchTerm
+            );
             setSuggestions(filtered);
-            setShowAddNew(filtered.length === 0);
+            setShowAddNew(filtered.length === 0 && !products.some(p => p.barcode === searchTerm));
         } else {
             setSuggestions([]);
             setShowAddNew(false);
         }
         setActiveSuggestion(-1);
     }, [searchTerm, products]);
+    
+    // Barcode Scanner Effect
+    useEffect(() => {
+        if (isScannerOpen) {
+            const scanner = new Html5QrcodeScanner(
+                'barcode-reader', 
+                { fps: 10, qrbox: { width: 250, height: 250 } }, 
+                false
+            );
+            
+            const handleSuccess = (decodedText: string) => {
+                scanner.clear();
+                setIsScannerOpen(false);
+                const matchedProduct = products.find(p => p.barcode === decodedText);
+                if (matchedProduct) {
+                    handleProductSelect(matchedProduct);
+                } else {
+                    setSearchTerm(decodedText);
+                    searchInputRef.current?.focus();
+                }
+            };
+            
+            const handleError = (error: any) => {
+                // console.warn(`Barcode scan error: ${error}`);
+            };
+
+            scanner.render(handleSuccess, handleError);
+            scannerRef.current = scanner;
+        } else {
+            if (scannerRef.current) {
+                scannerRef.current.clear().catch(err => console.error("Failed to clear scanner", err));
+                scannerRef.current = null;
+            }
+        }
+
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.clear().catch(err => console.error("Failed to clear scanner on unmount", err));
+            }
+        };
+    }, [isScannerOpen, products]);
+
 
     const handleProductSelect = (product: Product) => {
         const newItems = [...saleItems];
@@ -286,19 +342,23 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
         }
     };
 
-    const handleItemUpdate = (index: number, field: keyof SaleItem, value: any) => {
+    const handleItemUpdate = (index: number, field: keyof SaleItem | 'name', value: any) => {
         const updatedItems = [...saleItems];
         (updatedItems[index] as any)[field] = value;
         onSessionUpdate({ saleItems: updatedItems });
         
+        const item = updatedItems[index];
+        const productToUpdate = products.find(p => p.id === item.productId);
+        if (!productToUpdate) return;
+        
         if (field === 'price') {
-            const item = updatedItems[index];
-            const productToUpdate = products.find(p => p.id === item.productId);
-            if (productToUpdate) {
-                const priceType = priceMode === 'B2B' ? 'b2bPrice' : 'b2cPrice';
-                if (productToUpdate[priceType] !== value) {
-                    onUpdateProduct({ ...productToUpdate, [priceType]: value });
-                }
+            const priceType = priceMode === 'B2B' ? 'b2bPrice' : 'b2cPrice';
+            if (productToUpdate[priceType] !== value) {
+                onUpdateProduct({ ...productToUpdate, [priceType]: value });
+            }
+        } else if (field === 'name') {
+             if (productToUpdate.name !== value) {
+                onUpdateProduct({ ...productToUpdate, name: value });
             }
         }
     };
@@ -334,14 +394,41 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
             }
         }
     };
+    
+    const handleVoiceSearch = () => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Sorry, your browser does not support voice recognition.");
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
-    const { subtotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited } = useMemo(() => {
-        const subtotal = saleItems.reduce((acc, item) => {
-            const itemTotal = item.quantity * item.price;
-            return acc + (item.isReturn ? -itemTotal : itemTotal);
-        }, 0);
-        const taxAmount = subtotal * (taxPercent / 100);
-        const grandTotal = subtotal + taxAmount;
+        recognition.start();
+
+        recognition.onresult = (event: any) => {
+            const speechResult = event.results[0][0].transcript;
+            setSearchTerm(speechResult);
+        };
+
+        recognition.onspeechend = () => {
+            recognition.stop();
+        };
+
+        recognition.onerror = (event: any) => {
+            alert(`Error occurred in recognition: ${event.error}`);
+        };
+    };
+
+
+    const { grossTotal, returnTotal, netTotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited } = useMemo(() => {
+        const grossTotal = saleItems.filter(item => !item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
+        const returnTotal = saleItems.filter(item => item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
+        const netTotal = grossTotal - returnTotal;
+        const taxAmount = netTotal * (taxPercent / 100);
+        const grandTotal = netTotal + taxAmount;
         
         const previousBalance = activeCustomer?.balance ?? 0;
         const totalDue = previousBalance + grandTotal;
@@ -349,14 +436,13 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
         const isEdited = editedNewBalance !== '';
         const parsedEdited = parseFloat(editedNewBalance);
         
-        // If edited and is a valid number, use it. Otherwise, default behavior is customer pays current bill, so new balance is previous balance.
         const finalNewBalance = isEdited && !isNaN(parsedEdited) 
             ? parsedEdited
             : previousBalance;
             
         const amountPaidForInvoice = totalDue - finalNewBalance;
         
-        return { subtotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited };
+        return { grossTotal, returnTotal, netTotal, taxAmount, grandTotal, finalNewBalance, amountPaidForInvoice, isEdited };
     }, [saleItems, taxPercent, activeCustomer, editedNewBalance]);
 
     const handlePreviewClick = () => {
@@ -368,7 +454,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
             customerName,
             customerMobile,
             saleItems,
-            subtotal,
+            grossTotal,
+            returnTotal,
+            subtotal: netTotal,
             taxAmount,
             taxPercent,
             grandTotal,
@@ -377,6 +465,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
             amountPaid: amountPaidForInvoice,
             newBalance: finalNewBalance,
             isBalanceEdited: isEdited && !isNaN(parseFloat(editedNewBalance)),
+            returnReason,
         });
     };
 
@@ -417,17 +506,25 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
 
                     <div className="form-group product-search-container">
                         <label htmlFor="product-search">Product Search</label>
-                        <input 
-                            id="product-search" 
-                            type="text" 
-                            className="input-field" 
-                            placeholder="Start typing product name..."
-                            ref={searchInputRef}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            onKeyDown={handleSearchKeyDown}
-                            autoComplete="off"
-                        />
+                         <div className="input-with-icons">
+                            <input 
+                                id="product-search" 
+                                type="text" 
+                                className="input-field" 
+                                placeholder="Start typing product name..."
+                                ref={searchInputRef}
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
+                                autoComplete="off"
+                            />
+                            <button onClick={handleVoiceSearch} className="input-icon-button" aria-label="Search by voice">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg>
+                            </button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg>
+                            </button>
+                        </div>
                         {(suggestions.length > 0 || showAddNew) && (
                             <div className="product-suggestions">
                                 {suggestions.map((p, i) => (
@@ -453,6 +550,13 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                         )}
                     </div>
                     
+                    {isScannerOpen && (
+                        <div className="barcode-scanner-container">
+                            <div id="barcode-reader" style={{ width: '100%', maxWidth: '500px' }}></div>
+                            <button onClick={() => setIsScannerOpen(false)} className="action-button-secondary">Cancel</button>
+                        </div>
+                    )}
+
                     <div className="sales-grid-container">
                         <table className="sales-grid" aria-label="Sales Items">
                             <thead>
@@ -475,7 +579,16 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                                 {saleItems.map((item, index) => (
                                     <tr key={`${item.productId}-${index}`} className={item.isReturn ? 'is-return' : ''}>
                                         <td>{index + 1}</td>
-                                        <td>{item.name}</td>
+                                        <td>
+                                            <input 
+                                                type="text"
+                                                className="input-field-seamless"
+                                                value={item.name}
+                                                onChange={e => handleItemUpdate(index, 'name', e.target.value)}
+                                                aria-label={`Product name for ${item.name}`}
+                                                disabled={userRole === 'cashier'}
+                                            />
+                                        </td>
                                         <td>
                                             <input 
                                                 type="number" 
@@ -529,11 +642,36 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                         <input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} />
                     </div>
 
+                    {saleItems.some(i => i.isReturn) && (
+                        <div className="form-group">
+                            <label htmlFor="return-reason">Reason for Return (Optional)</label>
+                            <textarea
+                                id="return-reason"
+                                className="input-field"
+                                rows={2}
+                                value={returnReason || ''}
+                                onChange={e => onSessionUpdate({ returnReason: e.target.value })}
+                                placeholder="e.g., Damaged item"
+                            />
+                        </div>
+                    )}
+
                     <div className="totals-summary">
                         {(activeCustomer && activeCustomer.balance !== 0) && (
                             <div className="total-row">
                                 <span>Previous Balance</span>
                                 <span>{formatCurrency(activeCustomer.balance)}</span>
+                            </div>
+                        )}
+
+                        <div className="total-row">
+                            <span>Gross Total</span>
+                            <span>{formatCurrency(grossTotal)}</span>
+                        </div>
+                        {returnTotal > 0 && (
+                            <div className="total-row return-total-row">
+                                <span>Return Total</span>
+                                <span>-{formatCurrency(returnTotal)}</span>
                             </div>
                         )}
 
@@ -794,11 +932,13 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     const [newProductB2B, setNewProductB2B] = useState(0);
     const [newProductB2C, setNewProductB2C] = useState(0);
     const [newProductStock, setNewProductStock] = useState(0);
+    const [newProductBarcode, setNewProductBarcode] = useState('');
 
     const nameTamilRef = useRef<HTMLInputElement>(null);
     const b2bRef = useRef<HTMLInputElement>(null);
     const b2cRef = useRef<HTMLInputElement>(null);
     const stockRef = useRef<HTMLInputElement>(null);
+    const barcodeRef = useRef<HTMLInputElement>(null);
     const submitRef = useRef<HTMLButtonElement>(null);
 
     const handleAddProduct = (e: React.FormEvent) => {
@@ -809,13 +949,15 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             nameTamil: newProductNameTamil,
             b2bPrice: newProductB2B,
             b2cPrice: newProductB2C,
-            stock: newProductStock
+            stock: newProductStock,
+            barcode: newProductBarcode
         });
         setNewProductName('');
         setNewProductNameTamil('');
         setNewProductB2B(0);
         setNewProductB2C(0);
         setNewProductStock(0);
+        setNewProductBarcode('');
     };
     
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => {
@@ -845,6 +987,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                 <th>B2B Price</th>
                                 <th>B2C Price</th>
                                 <th>Stock</th>
+                                <th>Barcode</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -856,6 +999,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                     <td>{formatCurrency(p.b2bPrice)}</td>
                                     <td>{formatCurrency(p.b2cPrice)}</td>
                                     <td>{p.stock}</td>
+                                    <td>{p.barcode || 'N/A'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -882,7 +1026,11 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                         </div>
                          <div className="form-group">
                            <label htmlFor="new-product-stock">Initial Stock</label>
-                           <input ref={stockRef} id="new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, submitRef)} />
+                           <input ref={stockRef} id="new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, barcodeRef)} />
+                        </div>
+                        <div className="form-group">
+                           <label htmlFor="new-product-barcode">Barcode (Optional)</label>
+                           <input ref={barcodeRef} id="new-product-barcode" type="text" className="input-field" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} />
                         </div>
                         <button ref={submitRef} type="submit" className="finalize-button">Add Product</button>
                     </form>
@@ -957,8 +1105,17 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
     
     const { 
         customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode,
-        grandTotal, previousBalance, amountPaid, newBalance, isBalanceEdited
+        grandTotal, previousBalance, amountPaid, newBalance, isBalanceEdited,
+        grossTotal, returnTotal, returnReason
     } = saleData;
+
+    const regularItems = saleItems.filter(item => !item.isReturn);
+    const returnedItems = saleItems.filter(item => item.isReturn);
+
+    // For backward compatibility with old sale data from reports
+    const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
+    const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
+
 
     const handlePrint = () => {
         window.print();
@@ -999,11 +1156,19 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
         message += `Customer: ${customerName || 'N/A'}\n`;
         message += `Date: ${saleData.date.toLocaleString()}\n\n`;
         message += `*Items:*\n`;
-        saleItems.forEach(item => {
+        regularItems.forEach(item => {
             const itemTotal = item.quantity * item.price;
-            message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = ${formatCurrency(itemTotal)} ${item.isReturn ? '(Return)' : ''}\n`;
+            message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = ${formatCurrency(itemTotal)}\n`;
         });
+        if (returnedItems.length > 0) {
+            message += `\n*Returned Items:*\n`;
+            returnedItems.forEach(item => {
+                const itemTotal = item.quantity * item.price;
+                message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = -${formatCurrency(itemTotal)}\n`;
+            });
+        }
         message += `\n*Summary:*\n`;
+        message += `Net Total: ${formatCurrency(subtotal)}\n`;
         if (taxPercent > 0) {
             message += `Tax (${taxPercent}%): ${formatNumberForInvoice(taxAmount)}\n`;
         }
@@ -1067,10 +1232,10 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {saleItems.map((item, index) => (
-                               <tr key={index} className={item.isReturn ? 'is-return' : ''}>
+                            {regularItems.map((item, index) => (
+                               <tr key={index}>
                                    <td>{index + 1}</td>
-                                   <td>{item.name} {item.isReturn && `(${languageMode === 'English' ? 'Return' : 'திரும்ப'})`}</td>
+                                   <td>{item.name}</td>
                                    <td>{formatQuantityForInvoice(item.quantity)}</td>
                                    <td>{formatNumberForInvoice(item.price)}</td>
                                    <td>{formatNumberForInvoice(item.quantity * item.price)}</td>
@@ -1078,6 +1243,38 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                             ))}
                         </tbody>
                     </table>
+
+                    {regularItems.length > 0 && (
+                        <div className="total-row invoice-section-total">
+                            <span>{languageMode === 'English' ? 'Gross Total' : 'மொத்த விற்பனை'}</span>
+                            <span>{formatNumberForInvoice(finalGrossTotal)}</span>
+                        </div>
+                    )}
+
+                    {returnedItems.length > 0 && (
+                        <>
+                            <h3 className="invoice-section-header">{languageMode === 'English' ? 'Return Items' : 'திரும்பிய பொருட்கள்'}</h3>
+                             <table className="invoice-table">
+                                <tbody>
+                                    {returnedItems.map((item, index) => (
+                                       <tr key={index} className="is-return">
+                                           <td>{index + 1}</td>
+                                           <td>{item.name}</td>
+                                           <td>{formatQuantityForInvoice(item.quantity)}</td>
+                                           <td>{formatNumberForInvoice(item.price)}</td>
+                                           <td className="return-amount">-{formatNumberForInvoice(item.quantity * item.price)}</td>
+                                       </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div className="total-row return-total-row invoice-section-total">
+                                <span>{languageMode === 'English' ? 'Return Total' : 'திரும்பிய மொத்தம்'}</span>
+                                <span className="return-amount">-{formatNumberForInvoice(finalReturnTotal)}</span>
+                            </div>
+                            {returnReason && <p className="invoice-return-reason"><strong>Reason:</strong> {returnReason}</p>}
+                        </>
+                    )}
+
                     <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}>
                         <div className="invoice-totals">
                             {taxPercent > 0 && (
@@ -1257,7 +1454,37 @@ type CustomerManagementPageProps = {
 const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ customers }) => {
     return (
         <div className="page-container">
-            <h2 className="page-title">Customer Management & Balances</h2>
+            <h2 className="page-title">Customer Management</h2>
+            <div className="inventory-list-container">
+                <table className="customer-table inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Customer Name</th>
+                            <th>Mobile Number</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {customers.map(c => (
+                            <tr key={c.mobile}>
+                                <td>{c.name}</td>
+                                <td>{c.mobile}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- BALANCE DUE PAGE ---
+type BalanceDuePageProps = {
+    customersWithBalance: Customer[];
+};
+const BalanceDuePage: React.FC<BalanceDuePageProps> = ({ customersWithBalance }) => {
+    return (
+        <div className="page-container">
+            <h2 className="page-title">Balance Due Customers</h2>
             <div className="inventory-list-container">
                 <table className="customer-table inventory-table">
                     <thead>
@@ -1268,7 +1495,12 @@ const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ custome
                         </tr>
                     </thead>
                     <tbody>
-                        {customers.sort((a,b) => b.balance - a.balance).map(c => (
+                        {customersWithBalance.length === 0 && (
+                            <tr>
+                                <td colSpan={3} style={{ textAlign: 'center', padding: '2rem' }}>No customers with outstanding balance.</td>
+                            </tr>
+                        )}
+                        {customersWithBalance.sort((a,b) => b.balance - a.balance).map(c => (
                             <tr key={c.mobile}>
                                 <td>{c.name}</td>
                                 <td>{c.mobile}</td>
@@ -1281,6 +1513,7 @@ const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ custome
         </div>
     );
 };
+
 
 // --- REPORTS PAGE COMPONENT ---
 type ReportsPageProps = {
@@ -1520,6 +1753,7 @@ const App = () => {
         taxPercent: 0,
         saleItems: [],
         editedNewBalance: '',
+        returnReason: '',
     }), []);
 
     const [saleSessions, setSaleSessions] = useState<SaleSession[]>([
@@ -1640,17 +1874,13 @@ const App = () => {
     };
     
     const handleNavigate = (page: string) => {
-        let targetPage = page;
-        if (page === 'Balance Due') {
-            targetPage = 'Customer Management';
-        }
         if (page === 'New Sale' && currentPage === 'Invoice' && !isSaleFinalized) {
              // Coming back from an unfinalized invoice preview, do nothing to state
         } else if (page === 'New Sale') {
             setPendingSaleData(null);
             setIsSaleFinalized(false);
         }
-        setCurrentPage(targetPage);
+        setCurrentPage(page);
     };
 
     const handleViewInvoiceFromReport = (sale: SaleData) => {
@@ -1695,6 +1925,8 @@ const App = () => {
                  />;
             case 'Customer Management':
                 return <CustomerManagementPage customers={customers} />;
+            case 'Balance Due':
+                return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports':
                 return <ReportsPage salesHistory={salesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
             case 'Notes':

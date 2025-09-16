@@ -13,10 +13,12 @@
     "react-dom": "^19.1.1",
     "jspdf": "2.5.1",
     "html2canvas": "1.4.1",
-    "pdfjs-dist": "3.11.174"
+    "pdfjs-dist": "3.11.174",
+    "html5-qrcode": "2.3.8"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
