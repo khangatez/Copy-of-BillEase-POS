@@ -2,15 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import 'pdfjs-dist'; // Import for its side-effect of attaching to the window object
 import { Html5QrcodeScanner } from 'html5-qrcode';
-
-
-// --- PDF.js Worker Configuration ---
-// The UMD build of pdfjs-dist attaches the library to the window object.
-// We import it for its side effect and then retrieve it from the global scope.
-const pdfjs = (window as any).pdfjsLib;
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.js`;
+import * as XLSX from 'xlsx';
 
 
 // --- TYPES ---
@@ -93,6 +86,7 @@ interface SaleSession {
 }
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord';
+type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata';
 
 
 // --- MOCK DATA (DATABASE SIMULATION) ---
@@ -130,6 +124,7 @@ const initialShops: Shop[] = [
 const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
 const formatQuantity = (quantity: number) => quantity.toFixed(3);
 const formatNumberForInvoice = (amount: number) => amount.toFixed(2);
+const formatPriceForInvoice = (amount: number) => amount.toFixed(1);
 const formatQuantityForInvoice = (quantity: number) => quantity.toFixed(1);
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -207,6 +202,8 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
     const barcodeRef = useRef<HTMLInputElement>(null);
     const submitRef = useRef<HTMLButtonElement>(null);
 
+    const formId = "add-product-form";
+
     if (!isOpen) return null;
 
     const handleAddProduct = (e: React.FormEvent) => {
@@ -244,7 +241,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <div className="modal-body">
-                    <form onSubmit={handleAddProduct} className="add-product-form">
+                    <form id={formId} onSubmit={handleAddProduct} className="add-product-form">
                         <div className="form-group">
                            <label htmlFor="modal-new-product-name">Product Name (English)</label>
                            <input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value)} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required />
@@ -269,11 +266,11 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                            <label htmlFor="modal-new-product-barcode">Barcode (Optional)</label>
                            <input ref={barcodeRef} id="modal-new-product-barcode" type="text" className="input-field" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} />
                         </div>
-                        <div className="modal-footer">
-                             <button className="action-button-secondary" type="button" onClick={onClose}>Cancel</button>
-                             <button ref={submitRef} type="submit" className="action-button-primary">Add Product</button>
-                        </div>
                     </form>
+                </div>
+                <div className="modal-footer">
+                     <button className="action-button-secondary" type="button" onClick={onClose}>Cancel</button>
+                     <button ref={submitRef} type="submit" form={formId} className="action-button-primary">Add Product</button>
                 </div>
             </div>
         </div>
@@ -308,7 +305,6 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
     const [isListening, setIsListening] = useState(false);
     const [voiceError, setVoiceError] = useState('');
     const [voiceSearchHistory, setVoiceSearchHistory] = useState<string[]>([]);
-    const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
     
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
 
@@ -620,17 +616,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
 
     return (
         <div className="page-container">
-            <AddProductModal 
-                isOpen={isAddProductModalOpen}
-                onClose={() => setIsAddProductModalOpen(false)}
-                onAddProduct={(data) => {
-                    const newProd = onAddProduct(data);
-                    handleProductSelect(newProd);
-                }}
-            />
             <main className="new-sale-layout">
                 <section className="sale-main" aria-labelledby="sale-heading">
-                    <h2 id="sale-heading" className="sr-only">New Sale</h2>
+                    <h2 id="sale-heading" className="page-title" style={{ marginBottom: 'var(--padding-md)' }}>New Sale</h2>
 
                     <div className="settings-toggles-top">
                         <div className="toggles-group-left">
@@ -719,9 +707,6 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                                 )}
                             </div>
                         </div>
-                        <div className="product-add-button-container">
-                             <button className="action-button-secondary" onClick={() => setIsAddProductModalOpen(true)}>Add Product</button>
-                        </div>
                     </div>
                     
                     {isScannerOpen && (
@@ -788,7 +773,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                                                 disabled={userRole !== 'admin'}
                                             />
                                         </td>
-                                        <td>{formatCurrency(item.quantity * item.price)}</td>
+                                        <td>{formatNumberForInvoice(item.quantity * item.price)}</td>
                                         <td>
                                           <button
                                             className={`return-toggle-button ${item.isReturn ? 'is-return-active' : ''}`}
@@ -887,211 +872,114 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
     );
 };
 
-// --- BULK ADD MODAL COMPONENT ---
-type BulkAddModalProps = {
+// --- BULK ADD (EXCEL) MODAL COMPONENT ---
+type BulkAddExcelModalProps = {
     onClose: () => void;
     onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
 };
 
-type ParsedProductData = {
-    sno: string;
-    name: string;
-    nameTamil: string;
-    price: number;
-};
-
-const BulkAddModal: React.FC<BulkAddModalProps> = ({ onClose, onAddBulkProducts }) => {
-    const [step, setStep] = useState(1);
-    const [b2bFile, setB2bFile] = useState<File | null>(null);
-    const [b2cFile, setB2cFile] = useState<File | null>(null);
-    const [parsedB2bData, setParsedB2bData] = useState<ParsedProductData[]>([]);
+const BulkAddExcelModal: React.FC<BulkAddExcelModalProps> = ({ onClose, onAddBulkProducts }) => {
+    const [excelFile, setExcelFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
 
-    const parsePdfForProducts = async (file: File): Promise<ParsedProductData[]> => {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument(arrayBuffer).promise;
-        const products: ParsedProductData[] = [];
-        let headerY = -1;
-        let columnBoundaries: { [key: string]: { start: number; end: number } } = {};
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const items = textContent.items as any[];
-
-            const lines = items.reduce((acc, item) => {
-                const y = Math.round(item.transform[5]);
-                if (!acc[y]) acc[y] = [];
-                acc[y].push(item);
-                return acc;
-            }, {} as { [key: number]: any[] });
-
-            // Find header only on the first page and if not already found
-            if (headerY === -1) {
-                const sortedLines = Object.entries(lines).sort(([y1], [y2]) => parseInt(y2) - parseInt(y1));
-                for (const [y, lineItems] of sortedLines) {
-                    const lineText = (lineItems as any[]).map(item => item.str.toLowerCase()).join('');
-                    if (lineText.includes('description') && lineText.includes('rate') && lineText.includes('s.no')) {
-                        headerY = parseInt(y);
-                        
-                        const consolidatedHeaders = (lineItems as any[]).reduce((acc, item) => {
-                             if (acc.length > 0 && Math.abs(item.transform[4] - (acc[acc.length-1].x + acc[acc.length-1].width)) < 10) {
-                                acc[acc.length-1].text += ` ${item.str}`;
-                                acc[acc.length-1].width += item.width;
-                            } else {
-                                acc.push({ text: item.str, x: item.transform[4], width: item.width });
-                            }
-                            return acc;
-                        }, [] as { text: string; x: number; width: number }[]);
-
-                        consolidatedHeaders.forEach(header => {
-                            const headerText = header.text.toLowerCase().replace(/\s/g, '');
-                            if (headerText.includes('s.no')) {
-                                columnBoundaries['sno'] = { start: header.x - 5, end: header.x + header.width + 5 };
-                            } else if (headerText.includes('description')) {
-                                columnBoundaries['description'] = { start: header.x - 5, end: header.x + header.width + 5 };
-                            } else if (headerText.includes('sal.rate') || headerText.includes('sl.rate')) {
-                                columnBoundaries['salRate'] = { start: header.x - 5, end: header.x + header.width + 5 };
-                            }
-                        });
-                        break;
-                    }
-                }
-            }
-             if (!columnBoundaries.description || !columnBoundaries.salRate || !columnBoundaries.sno) {
-                console.warn("Could not find all required columns (S.No, Description, Sal.Rate) on page", i);
-                continue; // Try next page
-            }
-
-            const dataLines = Object.entries(lines)
-                .filter(([y]) => parseInt(y) < headerY)
-                .sort(([y1], [y2]) => parseInt(y2) - parseInt(y1));
-
-            for (const [, lineItems] of dataLines) {
-                let sno = '';
-                let description = '';
-                let priceStr = '';
-
-                const sortedLineItems = (lineItems as any[]).sort((a,b) => a.transform[4] - b.transform[4]);
-                
-                sortedLineItems.forEach(item => {
-                    const itemCenter = item.transform[4] + item.width / 2;
-                    if (itemCenter >= columnBoundaries.sno.start && itemCenter <= columnBoundaries.sno.end) {
-                        sno += `${item.str}`;
-                    } else if (itemCenter >= columnBoundaries.description.start && itemCenter <= columnBoundaries.description.end) {
-                         description += ` ${item.str}`;
-                    } else if (itemCenter >= columnBoundaries.salRate.start && itemCenter <= columnBoundaries.salRate.end) {
-                        priceStr += item.str;
-                    }
-                });
-                
-                sno = sno.trim();
-                description = description.trim();
-                const price = parseFloat(priceStr);
-
-                if (sno && description && !isNaN(price)) {
-                    const tamilRegex = /[\u0B80-\u0BFF]/;
-                    let splitIndex = -1;
-                    
-                    for (let j = 0; j < description.length; j++) {
-                        if (tamilRegex.test(description[j])) {
-                            splitIndex = j;
-                            break;
-                        }
-                    }
-
-                    const name = (splitIndex !== -1 ? description.substring(0, splitIndex) : description).trim();
-                    const nameTamil = (splitIndex !== -1 ? description.substring(splitIndex) : '').trim();
-
-                    if(name) {
-                        products.push({ sno, name, nameTamil, price });
-                    }
-                }
-            }
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setExcelFile(file);
+            setStatusMessage('');
         }
-        if (products.length === 0) {
-            throw new Error("No products could be extracted. Check if the PDF contains 'S.No', 'Description', and 'Sal.Rate' columns.");
-        }
-        return products;
     };
 
-    const handleProcessB2bPdf = async () => {
-        if (!b2bFile) return;
-        setIsLoading(true);
-        try {
-            setStatusMessage('Parsing Master/B2B price list...');
-            await new Promise(resolve => setTimeout(resolve, 50));
-            const b2bData = await parsePdfForProducts(b2bFile);
-            setParsedB2bData(b2bData);
-            setStatusMessage(`${b2bData.length} products found. Please upload the B2C pricelist.`);
-            setStep(2);
-        } catch(error) {
-             alert(`An error occurred: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsLoading(false);
-        }
-    }
-
-    const handleProcessAndMerge = async () => {
-        if (!b2cFile || parsedB2bData.length === 0) {
-            alert('Please upload the B2C PDF file.');
+    const handleProcessAndAdd = async () => {
+        if (!excelFile) {
+            alert('Please select an Excel file.');
             return;
         }
 
         setIsLoading(true);
+        setStatusMessage('Reading Excel file...');
+
         try {
-            setStatusMessage('Parsing B2C price list...');
-            await new Promise(resolve => setTimeout(resolve, 50));
-            const b2cData = await parsePdfForProducts(b2cFile);
-            
-            setStatusMessage('Merging data...');
-            await new Promise(resolve => setTimeout(resolve, 50));
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = e.target?.result;
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
 
-            const b2cPriceMapBySno = new Map(b2cData.map(p => [p.sno.toLowerCase(), p.price]));
-            const b2cPriceMapByName = new Map(b2cData.map(p => [p.name.toLowerCase(), p.price]));
-            
-            const newProducts: Omit<Product, 'id' | 'stock'>[] = [];
+                    if (json.length === 0) {
+                        throw new Error("The Excel sheet is empty or in an unsupported format.");
+                    }
+                    
+                    setStatusMessage(`Found ${json.length} rows. Processing...`);
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    const newProducts: Omit<Product, 'id' | 'stock'>[] = json.map((row: any) => {
+                        // Normalize keys: convert to lowercase and remove spaces
+                        const normalizedRow: {[key: string]: any} = {};
+                        for (const key in row) {
+                            normalizedRow[key.trim().toLowerCase().replace(/\s/g, '')] = row[key];
+                        }
 
-            for (const b2bProduct of parsedB2bData) {
-                let b2cPrice = b2cPriceMapBySno.get(b2bProduct.sno.toLowerCase());
-                if(b2cPrice === undefined) {
-                    b2cPrice = b2cPriceMapByName.get(b2bProduct.name.toLowerCase());
+                        // More forgiving key matching
+                        const name = normalizedRow['productnameenglish'] ?? normalizedRow['productname'] ?? normalizedRow['name'];
+                        const nameTamil = normalizedRow['tamilproductnametamil'] ?? normalizedRow['tamilproductname'] ?? normalizedRow['nametamil'] ?? '';
+                        const b2bPriceRaw = normalizedRow['b2b'] ?? normalizedRow['b2bprice'];
+                        const b2cPriceRaw = normalizedRow['b2c'] ?? normalizedRow['b2cprice'];
+                        const barcodeRaw = normalizedRow['barcode'] ?? normalizedRow['upc'];
+                        
+                        const b2bPrice = parseFloat(b2bPriceRaw) || 0;
+                        const b2cPrice = parseFloat(b2cPriceRaw) || 0;
+                        const barcode = barcodeRaw ? String(barcodeRaw) : undefined;
+
+                        if (!name) { // Only name is required. Prices default to 0.
+                            return null;
+                        }
+
+                        return {
+                            name,
+                            nameTamil,
+                            b2bPrice,
+                            b2cPrice,
+                            barcode,
+                        };
+                    }).filter((p): p is Omit<Product, 'id' | 'stock'> => p !== null);
+
+                    if (newProducts.length === 0) {
+                        const detectedHeaders = Object.keys(json[0] || {}).join(', ');
+                        throw new Error(`No valid product rows found. Detected headers: [${detectedHeaders}]. Please ensure a column for product names exists (e.g., 'Product Name').`);
+                    }
+                    
+                    setStatusMessage('Adding products to inventory...');
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    const result = await onAddBulkProducts(newProducts);
+                    alert(`Bulk add complete!\n\n${result.added} new products added.\n${result.skipped} products were skipped because they already exist.`);
+                    onClose();
+                } catch (err) {
+                    setIsLoading(false);
+                    const errorMessage = err instanceof Error ? err.message : String(err);
+                    setStatusMessage(`Error: ${errorMessage}`);
+                    alert(`An error occurred during processing: ${errorMessage}`);
                 }
-
-                if (b2cPrice !== undefined) {
-                    newProducts.push({
-                        name: b2bProduct.name,
-                        nameTamil: b2bProduct.nameTamil,
-                        b2bPrice: b2bProduct.price,
-                        b2cPrice: b2cPrice,
-                    });
-                } else {
-                     newProducts.push({ // If no B2C price, add with B2B price as default
-                        name: b2bProduct.name,
-                        nameTamil: b2bProduct.nameTamil,
-                        b2bPrice: b2bProduct.price,
-                        b2cPrice: b2bProduct.price, // Default to B2B
-                    });
-                }
-            }
-            
-            setStatusMessage('Adding products to inventory...');
-            await new Promise(resolve => setTimeout(resolve, 50));
-            const result = await onAddBulkProducts(newProducts);
-            alert(`Bulk add complete!\n\n${result.added} new products added.\n${result.skipped} products were skipped because they already exist.`);
-            onClose();
-
+            };
+            reader.onerror = () => {
+                 setIsLoading(false);
+                 setStatusMessage('Error reading the file.');
+                 alert('Failed to read the file.');
+            };
+            reader.readAsArrayBuffer(excelFile);
         } catch (error) {
-            console.error('Error processing PDFs:', error);
-            alert(`An error occurred: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsLoading(false);
-            setStatusMessage('');
+             setIsLoading(false);
+             const errorMessage = error instanceof Error ? error.message : String(error);
+             setStatusMessage(`Error: ${errorMessage}`);
+             alert(`An error occurred: ${errorMessage}`);
         }
     };
     
-    const renderStepContent = () => {
+    const renderContent = () => {
         if (isLoading) {
             return (
                 <div className="loading-indicator">
@@ -1101,54 +989,38 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ({ onClose, onAddBulkProducts 
             );
         }
 
-        switch(step) {
-            case 1:
-                return (
-                     <>
-                        <div className="modal-body">
-                            <p><b>Step 1:</b> Upload the master pricelist containing S.No, Description (English & Tamil), and B2B Sale Rate.</p>
-                            <label htmlFor="b2b-file-input" className="file-input-group">
-                                <p>Click to upload Master/B2B Pricelist PDF</p>
-                                <input id="b2b-file-input" type="file" accept=".pdf" onChange={e => setB2bFile(e.target.files?.[0] || null)} />
-                                {b2bFile && <p className="file-name">{b2bFile.name}</p>}
-                            </label>
-                        </div>
-                        <div className="modal-footer">
-                            <button className="action-button-secondary" onClick={onClose}>Cancel</button>
-                            <button className="action-button-primary" onClick={handleProcessB2bPdf} disabled={!b2bFile}>Process Master List</button>
-                        </div>
-                    </>
-                );
-            case 2:
-                 return (
-                     <>
-                        <div className="modal-body">
-                            <p className="success-message">{statusMessage}</p>
-                            <p><b>Step 2:</b> Now, upload the B2C pricelist. The system will match products by S.No and Name to find the B2C price.</p>
-                            <label htmlFor="b2c-file-input" className="file-input-group">
-                                <p>Click to upload B2C Pricelist PDF</p>
-                                <input id="b2c-file-input" type="file" accept=".pdf" onChange={e => setB2cFile(e.target.files?.[0] || null)} />
-                                {b2cFile && <p className="file-name">{b2cFile.name}</p>}
-                            </label>
-                        </div>
-                        <div className="modal-footer">
-                            <button className="action-button-secondary" onClick={onClose}>Cancel</button>
-                            <button className="action-button-primary" onClick={handleProcessAndMerge} disabled={!b2cFile}>Merge and Add Products</button>
-                        </div>
-                    </>
-                );
-        }
-    }
-
+        return (
+            <>
+                <div className="modal-body">
+                    <p>Upload an Excel file (.xlsx, .xls) with product data.</p>
+                    <p>
+                        The only required column is one for the product's name (e.g., <b>Product Name</b>, <b>name</b>, or <b>product name English</b>).
+                        <br/>
+                        Optional columns: <b>B2B</b>, <b>B2C</b>, <b>Tamil product name Tamil</b>, <b>barcode</b>. Prices default to 0 if missing or invalid. If you see an error, it will show you the exact column headers detected from your file to help you debug.
+                    </p>
+                    <label htmlFor="excel-file-input" className="file-input-group">
+                        <p>Click to upload Excel file</p>
+                        <input id="excel-file-input" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
+                        {excelFile && <p className="file-name">{excelFile.name}</p>}
+                    </label>
+                    {statusMessage && <p className="error-message">{statusMessage}</p>}
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" onClick={onClose}>Cancel</button>
+                    <button className="action-button-primary" onClick={handleProcessAndAdd} disabled={!excelFile}>Process and Add Products</button>
+                </div>
+            </>
+        );
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>Add Bulk Products from PDF</h3>
+                    <h3>Add Bulk Products from Excel</h3>
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
-                {renderStepContent()}
+                {renderContent()}
             </div>
         </div>
     );
@@ -1162,12 +1034,12 @@ type ProductInventoryPageProps = {
     onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
 };
 const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onAddBulkProducts }) => {
-    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+    const [isBulkExcelModalOpen, setIsBulkExcelModalOpen] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     
     return (
         <div className="page-container">
-            {isBulkModalOpen && <BulkAddModal onClose={() => setIsBulkModalOpen(false)} onAddBulkProducts={onAddBulkProducts} />}
+            {isBulkExcelModalOpen && <BulkAddExcelModal onClose={() => setIsBulkExcelModalOpen(false)} onAddBulkProducts={onAddBulkProducts} />}
             <AddProductModal 
                 isOpen={isAddModalOpen} 
                 onClose={() => setIsAddModalOpen(false)} 
@@ -1179,8 +1051,8 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                     <button className="action-button-secondary" onClick={() => setIsAddModalOpen(true)}>
                         Add New Product
                     </button>
-                    <button className="action-button-primary" onClick={() => setIsBulkModalOpen(true)}>
-                        Add Bulk Products from PDF
+                    <button className="action-button-primary" onClick={() => setIsBulkExcelModalOpen(true)}>
+                        Add Bulk Products from Excel
                     </button>
                 </div>
             </div>
@@ -1231,10 +1103,12 @@ type InvoicePageProps = {
     onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
     offsets: { header: number; footer: number };
     onOffsetsChange: (offsets: { header: number; footer: number }) => void;
+    fontStyle: InvoiceFontStyle;
+    onFontStyleChange: (style: InvoiceFontStyle) => void;
 };
 const InvoicePage: React.FC<InvoicePageProps> = ({ 
     saleData, onNavigate, settings, onSettingsChange, onConfirmFinalizeSale, isFinalized, 
-    margins, onMarginsChange, offsets, onOffsetsChange 
+    margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange 
 }) => {
     const [paperSize, setPaperSize] = useState('4inch');
     const [fontSize, setFontSize] = useState('medium');
@@ -1336,13 +1210,13 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
         message += `*Items:*\n`;
         regularItems.forEach(item => {
             const itemTotal = item.quantity * item.price;
-            message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = ${formatCurrency(itemTotal)}\n`;
+            message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = ${formatCurrency(itemTotal)}\n`;
         });
         if (returnedItems.length > 0) {
             message += `\n*Returned Items:*\n`;
             returnedItems.forEach(item => {
                 const itemTotal = item.quantity * item.price;
-                message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatNumberForInvoice(item.price)}) = -${formatCurrency(itemTotal)}\n`;
+                message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = -${formatCurrency(itemTotal)}\n`;
             });
         }
         message += `\n*Summary:*\n`;
@@ -1370,7 +1244,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
     return (
         <div className="page-container invoice-page-container">
             <div 
-                className={`invoice-paper size-${paperSize} font-${fontSize}`} 
+                className={`invoice-paper size-${paperSize} font-${fontSize} font-style-${fontStyle}`} 
                 ref={invoiceRef}
                 style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}
             >
@@ -1415,7 +1289,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                                    <td>{index + 1}</td>
                                    <td>{item.name}</td>
                                    <td>{formatQuantityForInvoice(item.quantity)}</td>
-                                   <td>{formatNumberForInvoice(item.price)}</td>
+                                   <td>{formatPriceForInvoice(item.price)}</td>
                                    <td>{formatNumberForInvoice(item.quantity * item.price)}</td>
                                </tr>
                             ))}
@@ -1439,7 +1313,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                                            <td>{index + 1}</td>
                                            <td>{item.name}</td>
                                            <td>{formatQuantityForInvoice(item.quantity)}</td>
-                                           <td>{formatNumberForInvoice(item.price)}</td>
+                                           <td>{formatPriceForInvoice(item.price)}</td>
                                            <td className="return-amount">-{formatNumberForInvoice(item.quantity * item.price)}</td>
                                        </tr>
                                     ))}
@@ -1531,6 +1405,18 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                             <option value="small">Small</option>
                             <option value="medium">Medium</option>
                             <option value="large">Large</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="font-style">Font Style</label>
+                        <select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field">
+                            <option value="monospace">System Monospace (Courier)</option>
+                            <option value="sans-serif">System Sans-Serif (Helvetica)</option>
+                            <option value="serif">System Serif (Times New Roman)</option>
+                            <option value="inconsolata">Inconsolata (Monospace)</option>
+                            <option value="roboto">Roboto (Sans-Serif)</option>
+                            <option value="merriweather">Merriweather (Serif)</option>
+                            <option value="playfair">Playfair Display (Serif)</option>
                         </select>
                     </div>
                     <div className="margin-controls">
@@ -2099,6 +1985,7 @@ const App = () => {
     const [appSettings, setAppSettings] = useState<AppSettings>({ invoiceFooter: 'Thank you for your business!' });
     const [invoiceMargins, setInvoiceMargins] = useState({ top: 20, right: 20, bottom: 20, left: 20 });
     const [invoiceTextOffsets, setInvoiceTextOffsets] = useState({ header: 0, footer: 0 });
+    const [invoiceFontStyle, setInvoiceFontStyle] = useState<InvoiceFontStyle>('monospace');
     const [users, setUsers] = useState<User[]>(initialUsers);
     const [shops, setShops] = useState<Shop[]>(initialShops);
     const nextProductId = useRef(Math.max(...initialProducts.map(p => p.id)) + 1);
@@ -2300,6 +2187,8 @@ const App = () => {
                     onMarginsChange={setInvoiceMargins}
                     offsets={invoiceTextOffsets}
                     onOffsetsChange={setInvoiceTextOffsets}
+                    fontStyle={invoiceFontStyle}
+                    onFontStyleChange={setInvoiceFontStyle}
                  />;
             case 'Customer Management':
                 return <CustomerManagementPage customers={customers} />;

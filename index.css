@@ -901,7 +901,6 @@ body {
     background-color: #fff;
     color: #000;
     margin: 0 auto;
-    font-family: 'Courier New', Courier, monospace;
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
     transition: all 0.3s ease;
 }
@@ -924,7 +923,7 @@ body {
 
 .invoice-custom-footer {
     text-align: center;
-    margin-top: var(--padding-md);
+    margin-top: var(--padding-sm); /* Reduced gap */
     font-style: italic;
     color: #555;
     font-size: 0.9em;
@@ -968,6 +967,29 @@ body {
 .invoice-paper.font-small { font-size: 12px; }
 .invoice-paper.font-medium { font-size: 14px; }
 .invoice-paper.font-large { font-size: 16px; }
+
+/* Font Styles */
+.invoice-paper.font-style-monospace {
+  font-family: 'Courier New', Courier, monospace;
+}
+.invoice-paper.font-style-sans-serif {
+  font-family: Helvetica, Arial, sans-serif;
+}
+.invoice-paper.font-style-serif {
+  font-family: 'Times New Roman', Times, serif;
+}
+.invoice-paper.font-style-roboto {
+  font-family: 'Roboto', sans-serif;
+}
+.invoice-paper.font-style-merriweather {
+  font-family: 'Merriweather', serif;
+}
+.invoice-paper.font-style-playfair {
+  font-family: 'Playfair Display', serif;
+}
+.invoice-paper.font-style-inconsolata {
+  font-family: 'Inconsolata', monospace;
+}
 
 
 .invoice-header {
@@ -1021,6 +1043,14 @@ body {
     padding: var(--padding-sm);
     text-align: left;
     border-bottom: 1px solid #ccc;
+}
+.invoice-table th:first-child, .invoice-table td:first-child {
+    width: 40px; /* Reduce S.No column width */
+}
+.invoice-table th:nth-child(3), .invoice-table td:nth-child(3),
+.invoice-table th:nth-child(4), .invoice-table td:nth-child(4),
+.invoice-table th:nth-child(5), .invoice-table td:nth-child(5) {
+    text-align: right; /* Align numeric columns to the right */
 }
 .invoice-table th {
     border-bottom: 2px solid #000;
@@ -1269,6 +1299,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--padding-md);
+    max-height: 90vh; /* Make modal height-constrained */
 }
 .modal-header {
     display: flex;
@@ -1277,6 +1308,7 @@ body {
     border-bottom: 1px solid var(--border-color);
     padding-bottom: var(--padding-md);
     margin-bottom: -8px; /* Counteract gap */
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 .modal-header h3 {
     font-size: 1.5rem;
@@ -1292,6 +1324,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--padding-md);
+    overflow-y: auto; /* Allow body to scroll */
 }
 .file-input-group {
     border: 2px dashed var(--border-color);
@@ -1324,6 +1357,7 @@ body {
     border-top: 1px solid var(--border-color);
     padding-top: var(--padding-md);
     margin-top: 8px;
+    flex-shrink: 0; /* Prevent footer from shrinking */
 }
 .loading-indicator {
     display: flex;
