@@ -134,7 +134,7 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     if(url.startsWith('/customers')) return [{ mobile: '+917601984346', name: 'Christy (from API)', balance: 50.75 }];
     if(url.startsWith('/sales')) return [];
     if(url.startsWith('/users')) return [{ username: 'manager1', password: 'password', role: 'manager', shopId: 1 }];
-    if(url.startsWith('/shops')) return [{ id: 1, name: "Main Street Branch" }];
+    if(url.startsWith('/shops')) return [{ id: 1, name: "Main Street Branch" }, { id: 2, name: "Downtown Kiosk"}];
     if(options.method === 'POST' && url.startsWith('/sales')) return { ...JSON.parse(options.body as string), id: `sale-${Date.now()}` };
     if(options.method === 'POST') return { ...JSON.parse(options.body as string), id: Date.now() };
 
@@ -214,9 +214,12 @@ type HeaderProps = {
   currentUser: User;
   onLogout: () => void;
   appName: string;
+  shops: Shop[];
+  selectedShopId: number | null;
+  onShopChange: (shopId: number) => void;
 };
 
-const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, appName }) => {
+const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, appName, shops, selectedShopId, onShopChange }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -235,11 +238,31 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const currentShopName = shops.find(s => s.id === selectedShopId)?.name || '';
+
   return (
     <header className="app-header">
       <h1 className="header-title">{appName}</h1>
       <div className="header-user-info">
-        <span>Welcome, {currentUser.username} ({currentUser.role})</span>
+        <span>
+            Welcome, {currentUser.username} ({currentUser.role})
+            {currentShopName && ` @ ${currentShopName}`}
+        </span>
+        {currentUser.role === 'admin' && shops.length > 0 && (
+            <div className="shop-selector">
+                <label htmlFor="shop-select" className="sr-only">Select Shop</label>
+                <select
+                    id="shop-select"
+                    className="select-field"
+                    value={selectedShopId || ''}
+                    onChange={(e) => onShopChange(Number(e.target.value))}
+                >
+                    {shops.map(shop => (
+                        <option key={shop.id} value={shop.id}>{shop.name}</option>
+                    ))}
+                </select>
+            </div>
+        )}
         <div className="dropdown" ref={dropdownRef}>
             <button className="dropdown-button" onClick={() => setDropdownOpen(!dropdownOpen)}>
             Menu ▾
@@ -2099,6 +2122,8 @@ const App = () => {
     const [invoiceFontStyle, setInvoiceFontStyle] = useState<InvoiceFontStyle>('monospace');
     const [users, setUsers] = useState<User[]>([]);
     const [shops, setShops] = useState<Shop[]>([]);
+    const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
+
 
     const initialSaleSession: SaleSession = useMemo(() => ({
         customerName: '',
@@ -2140,39 +2165,66 @@ const App = () => {
         checkSession();
     }, []);
 
-     // Fetch data when user is authenticated
+    // Main data fetching effect, reacts to user login and admin shop selection
     useEffect(() => {
         const fetchData = async () => {
             if (!currentUser) return;
             setIsLoading(true);
             setAppError(null);
+
             try {
-                const shopId = currentUser.role === 'admin' ? 1 : currentUser.shopId; // Admin needs a shopId. Assume 1.
-                if (!shopId && currentUser.role !== 'admin') throw new Error("User has no assigned shop.");
-
-                const requests = [
-                    api.getProducts(shopId),
+                // Phase 1: Fetch global/user-level data for all roles
+                const baseRequests: Promise<any>[] = [
+                    api.getShops(),
                     api.getCustomers(),
-                    api.getSales(shopId),
                 ];
-
                 if (currentUser.role === 'admin') {
-                    requests.push(api.getUsers());
-                    requests.push(api.getShops());
+                    baseRequests.push(api.getUsers());
                 }
 
-                const [productsData, customersData, salesData, usersData, shopsData] = await Promise.all(requests);
-
-                setProducts(productsData || []);
+                const [shopsData, customersData, usersData] = await Promise.all(baseRequests);
+                const allShops = shopsData || [];
+                setShops(allShops);
                 setCustomers(customersData || []);
-                setSalesHistory((salesData || []).map(s => ({ ...s, date: new Date(s.date) })));
                 if (currentUser.role === 'admin') {
                     setUsers(usersData || []);
-                    setShops(shopsData || []);
                 }
 
+                // Phase 2: Determine which shop's data to fetch
+                let shopIdToFetch: number | undefined;
+                if (currentUser.role === 'admin') {
+                    // For admin, if selectedShopId is not set, default to the first shop
+                    shopIdToFetch = selectedShopId || allShops[0]?.id;
+                    if(shopIdToFetch && !selectedShopId) {
+                        setSelectedShopId(shopIdToFetch);
+                    }
+                } else {
+                    shopIdToFetch = currentUser.shopId;
+                }
+
+                if (!shopIdToFetch) {
+                    if (currentUser.role !== 'admin') {
+                        throw new Error("User has no assigned shop.");
+                    } else {
+                        // Admin has no shops to manage, clear shop-specific data
+                        setProducts([]);
+                        setSalesHistory([]);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // Phase 3: Fetch shop-specific data
+                const [productsData, salesData] = await Promise.all([
+                    api.getProducts(shopIdToFetch),
+                    api.getSales(shopIdToFetch),
+                ]);
+
+                setProducts(productsData || []);
+                setSalesHistory((salesData || []).map(s => ({ ...s, date: new Date(s.date) })));
+
             } catch (err) {
-                 const errorMessage = err instanceof Error ? err.message : "Failed to load application data.";
+                const errorMessage = err instanceof Error ? err.message : "Failed to load application data.";
                 setAppError(errorMessage);
             } finally {
                 setIsLoading(false);
@@ -2180,7 +2232,7 @@ const App = () => {
         };
 
         fetchData();
-    }, [currentUser]);
+    }, [currentUser, selectedShopId]); // Re-fetches if user changes or admin selects a different shop
 
 
     const updateCurrentSaleSession = (updates: Partial<SaleSession>) => {
@@ -2218,6 +2270,7 @@ const App = () => {
         setSalesHistory([]);
         setUsers([]);
         setShops([]);
+        setSelectedShopId(null);
     };
 
     const handleAddProduct = async (newProductData: Omit<Product, 'id'>): Promise<Product> => {
@@ -2287,9 +2340,9 @@ const App = () => {
         resetCurrentSaleSession();
 
         // Refetch critical data in the background
-        const shopId = currentUser?.role === 'admin' ? 1 : currentUser?.shopId;
-        if (shopId) {
-            api.getProducts(shopId).then(setProducts);
+        const shopIdToRefresh = currentUser?.role === 'admin' ? selectedShopId : currentUser?.shopId;
+        if (shopIdToRefresh) {
+            api.getProducts(shopIdToRefresh).then(setProducts);
             api.getCustomers().then(setCustomers);
         }
 
@@ -2385,9 +2438,19 @@ const App = () => {
         }
     };
 
+    const currentShopContextId = currentUser.role === 'admin' ? selectedShopId : currentUser.shopId || null;
+
     return (
         <>
-            <AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} />
+            <AppHeader 
+                onNavigate={handleNavigate} 
+                currentUser={currentUser} 
+                onLogout={handleLogout} 
+                appName={appName}
+                shops={shops}
+                selectedShopId={currentShopContextId}
+                onShopChange={setSelectedShopId}
+             />
             <main className="app-main">
                 {renderPage()}
             </main>

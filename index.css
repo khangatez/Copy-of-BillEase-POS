@@ -194,6 +194,15 @@ body {
 
 .header-user-info span {
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.shop-selector .select-field {
+    background-color: var(--background-tertiary);
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    min-width: 180px;
+    font-size: 0.9rem;
 }
 
 .dropdown {
