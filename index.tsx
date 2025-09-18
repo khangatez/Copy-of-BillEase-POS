@@ -8,6 +8,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 // --- TYPES ---
 interface Product {
   id: number;
+  shopId: number;
   name: string;
   nameTamil: string;
   b2bPrice: number;
@@ -32,6 +33,7 @@ interface SaleItem {
 
 interface SaleData {
     id: string;
+    shopId: number;
     date: Date;
     customerName: string;
     customerMobile: string;
@@ -94,6 +96,19 @@ const initialNotes: Note[] = [
     { id: 2, text: 'Clean the front display', completed: true },
 ];
 
+const MOCK_PRODUCTS: Product[] = [
+    { id: 1, shopId: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' },
+    { id: 2, shopId: 1, name: 'Milk', nameTamil: 'பால்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222' },
+    { id: 3, shopId: 2, name: 'Bread', nameTamil: 'ரொட்டி', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333' },
+    { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444' },
+];
+
+const MOCK_SALES: SaleData[] = [
+    { id: 'sale-1', shopId: 1, date: new Date(new Date().setDate(new Date().getDate() - 1)), customerName: 'Alice', customerMobile: '111', saleItems: [{ productId: 1, name: 'Apple', quantity: 5, price: 0.5, isReturn: false }], grossTotal: 2.5, returnTotal: 0, subtotal: 2.5, taxAmount: 0, taxPercent: 0, grandTotal: 2.5, languageMode: 'English', previousBalance: 0, amountPaid: 2.5, newBalance: 0 },
+    { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, newBalance: 0 },
+];
+
+
 // --- API Client ---
 const API_BASE_URL = '/api'; // Using a proxy to a real backend
 
@@ -109,15 +124,10 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-
-    // This is a placeholder for a real API call.
-    // In a real scenario, this would be a fetch() call.
     console.log(`Making API call to ${API_BASE_URL}${url}`, options);
-    // Simulating a delay
     await new Promise(res => setTimeout(res, 300));
 
     // MOCK RESPONSES FOR DEMONSTRATION
-    // In a real app, you would remove this mock logic.
     if (url.startsWith('/auth/login')) {
         const body = JSON.parse(options.body as string);
         if (body.username === 'admin' && body.password === 'admin') {
@@ -128,11 +138,17 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
         }
         throw new Error("Invalid credentials");
     }
-    // For other endpoints, return mock success data or empty arrays to prevent crashes.
-    // This allows the UI to function without a real backend.
-    if(url.startsWith('/products')) return [{ id: 1, name: 'Apple (from API)', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' }];
+    if(url === '/products') return MOCK_PRODUCTS;
+    if(url.startsWith('/products?shop_id=')) {
+        const shopId = Number(url.split('=')[1]);
+        return MOCK_PRODUCTS.filter(p => p.shopId === shopId);
+    }
+    if(url === '/sales') return MOCK_SALES;
+    if(url.startsWith('/sales?shop_id=')) {
+        const shopId = Number(url.split('=')[1]);
+        return MOCK_SALES.filter(s => s.shopId === shopId);
+    }
     if(url.startsWith('/customers')) return [{ mobile: '+917601984346', name: 'Christy (from API)', balance: 50.75 }];
-    if(url.startsWith('/sales')) return [];
     if(url.startsWith('/users')) return [{ username: 'manager1', password: 'password', role: 'manager', shopId: 1 }];
     if(url.startsWith('/shops')) return [{ id: 1, name: "Main Street Branch" }, { id: 2, name: "Downtown Kiosk"}];
     if(options.method === 'POST' && url.startsWith('/sales')) return { ...JSON.parse(options.body as string), id: `sale-${Date.now()}` };
@@ -141,61 +157,28 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 
     // REAL FETCH LOGIC (commented out for demonstration)
     /*
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-        ...options,
-        headers,
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-    if (response.status === 204) {
-        return null;
-    }
+    const response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers });
+    if (!response.ok) { throw new Error((await response.json()).message || 'API Error'); }
+    if (response.status === 204) return null;
     return response.json();
     */
 };
 
 
 const api = {
-    login: (username, password) => apiFetch('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-    }),
-    register: (user) => apiFetch('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(user),
-    }),
+    login: (username, password) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+    register: (user) => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(user) }),
     getShops: () => apiFetch('/shops'),
-    addShop: (name) => apiFetch('/shops', {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-    }),
-    getUsers: () => apiFetch('/users'), // Assumed endpoint
-    getProducts: (shopId) => apiFetch(`/products?shop_id=${shopId}`),
-    addProduct: (product) => apiFetch('/products', {
-        method: 'POST',
-        body: JSON.stringify(product),
-    }),
-    updateProduct: (id, product) => apiFetch(`/products/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(product),
-    }),
-    createSale: (sale) => apiFetch('/sales', {
-        method: 'POST',
-        body: JSON.stringify(sale),
-    }),
-    getSales: (shopId) => apiFetch(`/sales?shop_id=${shopId}`),
-    getCustomers: () => apiFetch('/customers'), // Assumed endpoint
-    addCustomer: (customer) => apiFetch('/customers', { // Assumed endpoint
-        method: 'POST',
-        body: JSON.stringify(customer),
-    }),
-    updateCustomerBalance: (id, balance) => apiFetch(`/customers/${id}/balance`, {
-        method: 'POST',
-        body: JSON.stringify({ balance }),
-    }),
+    addShop: (name) => apiFetch('/shops', { method: 'POST', body: JSON.stringify({ name }) }),
+    getUsers: () => apiFetch('/users'),
+    getProducts: (shopId?: number) => apiFetch(shopId ? `/products?shop_id=${shopId}` : '/products'),
+    addProduct: (product) => apiFetch('/products', { method: 'POST', body: JSON.stringify(product) }),
+    updateProduct: (id, product) => apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(product) }),
+    createSale: (sale) => apiFetch('/sales', { method: 'POST', body: JSON.stringify(sale) }),
+    getSales: (shopId?: number) => apiFetch(shopId ? `/sales?shop_id=${shopId}` : '/sales'),
+    getCustomers: () => apiFetch('/customers'),
+    addCustomer: (customer) => apiFetch('/customers', { method: 'POST', body: JSON.stringify(customer) }),
+    updateCustomerBalance: (id, balance) => apiFetch(`/customers/${id}/balance`, { method: 'POST', body: JSON.stringify({ balance }) }),
 };
 
 
@@ -223,10 +206,20 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const allMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Reports', 'Notes', 'Settings', 'Balance Due', 'Shop Management'];
-  const nonAdminMenuItems = ['New Sale'];
+  const allMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Reports', 'Notes', 'Settings', 'Balance Due', 'Shop Management'];
+  const managerMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Reports', 'Notes', 'Balance Due'];
+  const cashierMenuItems = ['New Sale'];
 
-  const menuItems = currentUser.role === 'admin' ? allMenuItems : nonAdminMenuItems;
+  const getMenuItems = () => {
+    switch(currentUser.role) {
+        case 'admin': return allMenuItems;
+        case 'manager': return managerMenuItems;
+        case 'cashier': return cashierMenuItems;
+        default: return [];
+    }
+  };
+
+  const menuItems = getMenuItems();
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -238,7 +231,7 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentShopName = shops.find(s => s.id === selectedShopId)?.name || '';
+  const currentShopName = shops.find(s => s.id === selectedShopId)?.name || 'All Shops';
 
   return (
     <header className="app-header">
@@ -246,7 +239,7 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
       <div className="header-user-info">
         <span>
             Welcome, {currentUser.username} ({currentUser.role})
-            {currentShopName && ` @ ${currentShopName}`}
+            {currentUser.role !== 'admin' && ` @ ${currentShopName}`}
         </span>
         {currentUser.role === 'admin' && shops.length > 0 && (
             <div className="shop-selector">
@@ -254,9 +247,10 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
                 <select
                     id="shop-select"
                     className="select-field"
-                    value={selectedShopId || ''}
-                    onChange={(e) => onShopChange(Number(e.target.value))}
+                    value={selectedShopId || 'all'}
+                    onChange={(e) => onShopChange(e.target.value === 'all' ? 0 : Number(e.target.value))}
                 >
+                    <option value="all">All Shops (Dashboard)</option>
                     {shops.map(shop => (
                         <option key={shop.id} value={shop.id}>{shop.name}</option>
                     ))}
@@ -287,8 +281,7 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
 type AddProductModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    // FIX: Changed onAddProduct return type from Promise<void> to Promise<Product> to match the actual function signature being passed.
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
+    onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
 };
 const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAddProduct }) => {
     const [newProductName, setNewProductName] = useState('');
@@ -395,18 +388,19 @@ type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
     onPreviewInvoice: (saleData: Omit<SaleData, 'id' | 'date'>) => void;
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
+    onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
     onUpdateProduct: (updatedProduct: Product) => void;
     userRole: User['role'];
     sessionData: SaleSession;
     onSessionUpdate: (updates: Partial<SaleSession>) => void;
     activeBillIndex: number;
     onBillChange: (index: number) => void;
+    currentShopId: number | null;
 };
 
 const NewSalePage: React.FC<NewSalePageProps> = ({ 
     products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole,
-    sessionData, onSessionUpdate, activeBillIndex, onBillChange
+    sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId
 }) => {
     const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, editedNewBalance, returnReason } = sessionData;
 
@@ -546,6 +540,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
                 b2cPrice: 0,
                 b2bPrice: 0,
                 stock: 0,
+                barcode: '',
             };
             const newProduct = await onAddProduct(newProdData);
             handleProductSelect(newProduct);
@@ -712,7 +707,12 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
             alert("Cannot preview an empty sale.");
             return;
         }
+        if (!currentShopId) {
+            alert("Cannot create a sale without a selected shop.");
+            return;
+        }
         onPreviewInvoice({
+            shopId: currentShopId,
             customerName,
             customerMobile,
             saleItems,
@@ -993,10 +993,10 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
 // --- PRODUCT INVENTORY PAGE ---
 type ProductInventoryPageProps = {
     products: Product[];
-    // FIX: Changed onAddProduct return type from Promise<void> to Promise<Product> to match the function being passed from the App component.
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
+    onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
+    shops: Shop[];
 };
-const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct }) => {
+const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, shops }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     
     return (
@@ -1022,6 +1022,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                 <th>ID</th>
                                 <th>Name (English)</th>
                                 <th>Name (Tamil)</th>
+                                <th>Shop</th>
                                 <th>B2B Price</th>
                                 <th>B2C Price</th>
                                 <th>Stock</th>
@@ -1034,6 +1035,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                     <td>{p.id}</td>
                                     <td>{p.name}</td>
                                     <td>{p.nameTamil}</td>
+                                    <td>{shops.find(s => s.id === p.shopId)?.name || 'N/A'}</td>
                                     <td>{formatCurrency(p.b2bPrice)}</td>
                                     <td>{formatCurrency(p.b2cPrice)}</td>
                                     <td>{p.stock}</td>
@@ -2034,6 +2036,135 @@ const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, o
     );
 };
 
+// --- ADMIN DASHBOARD PAGE ---
+type AdminDashboardPageProps = {
+    allSalesHistory: SaleData[];
+    allProducts: Product[];
+    shops: Shop[];
+};
+const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ allSalesHistory, allProducts, shops }) => {
+    const [filterPeriod, setFilterPeriod] = useState<'today' | 'yesterday' | '7days' | '1month'>('today');
+
+    const filteredSales = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+
+        return allSalesHistory.filter(sale => {
+            const saleDate = sale.date;
+            switch (filterPeriod) {
+                case 'today': return saleDate >= todayStart;
+                case 'yesterday': return saleDate >= yesterdayStart && saleDate < todayStart;
+                case '7days': return saleDate >= sevenDaysAgo;
+                case '1month': return saleDate >= oneMonthAgo;
+                default: return true;
+            }
+        });
+    }, [allSalesHistory, filterPeriod]);
+
+    const { totalSales, transactionCount, salesByShop, topProducts } = useMemo(() => {
+        const totalSales = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
+        const transactionCount = filteredSales.length;
+
+        const salesByShop = shops.map(shop => {
+            const shopSales = filteredSales.filter(sale => sale.shopId === shop.id);
+            return {
+                shopId: shop.id,
+                shopName: shop.name,
+                totalSales: shopSales.reduce((acc, sale) => acc + sale.grandTotal, 0),
+                transactionCount: shopSales.length,
+            };
+        }).sort((a, b) => b.totalSales - a.totalSales);
+
+        const productSales = new Map<number, { name: string, quantity: number, total: number }>();
+        filteredSales.forEach(sale => {
+            sale.saleItems.forEach(item => {
+                if (!item.isReturn) {
+                    const existing = productSales.get(item.productId) || { name: item.name, quantity: 0, total: 0 };
+                    existing.quantity += item.quantity;
+                    existing.total += item.quantity * item.price;
+                    productSales.set(item.productId, existing);
+                }
+            });
+        });
+        const topProducts = [...productSales.entries()]
+            .map(([productId, data]) => ({ productId, ...data }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10);
+
+        return { totalSales, transactionCount, salesByShop, topProducts };
+    }, [filteredSales, shops]);
+
+    return (
+        <div className="page-container admin-dashboard-page">
+            <h2 className="page-title">Admin Dashboard</h2>
+            <div className="report-filters">
+                <div className="form-group">
+                    <label htmlFor="report-period">Select Period</label>
+                    <select id="report-period" value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="select-field">
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="7days">Last 7 Days</option>
+                        <option value="1month">Last 1 Month</option>
+                    </select>
+                </div>
+            </div>
+            <div className="summary-cards">
+                <div className="summary-card">
+                    <h3>Total Sales (All Shops)</h3>
+                    <p>{formatCurrency(totalSales)}</p>
+                </div>
+                <div className="summary-card">
+                    <h3>Total Transactions</h3>
+                    <p>{transactionCount}</p>
+                </div>
+                <div className="summary-card">
+                    <h3>Avg. Sale Value</h3>
+                    <p>{formatCurrency(transactionCount > 0 ? totalSales / transactionCount : 0)}</p>
+                </div>
+            </div>
+            <div className="admin-dashboard-layout">
+                <div className="dashboard-section management-card">
+                    <h3>Sales by Shop</h3>
+                    <table className="inventory-table">
+                        <thead>
+                            <tr><th>Shop Name</th><th>Transactions</th><th>Total Sales</th></tr>
+                        </thead>
+                        <tbody>
+                            {salesByShop.map(s => (
+                                <tr key={s.shopId}>
+                                    <td>{s.shopName}</td>
+                                    <td>{s.transactionCount}</td>
+                                    <td>{formatCurrency(s.totalSales)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="dashboard-section management-card">
+                    <h3>Top Selling Products</h3>
+                     <table className="inventory-table">
+                        <thead>
+                            <tr><th>Product</th><th>Quantity Sold</th><th>Total Value</th></tr>
+                        </thead>
+                        <tbody>
+                            {topProducts.map(p => (
+                                <tr key={p.productId}>
+                                    <td>{p.name}</td>
+                                    <td>{formatQuantity(p.quantity)}</td>
+                                    <td>{formatCurrency(p.total)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- LOGIN PAGE COMPONENT ---
 type LoginPageProps = {
@@ -2108,10 +2239,10 @@ const App = () => {
     const [appError, setAppError] = useState<string | null>(null);
 
     const [currentPage, setCurrentPage] = useState('New Sale');
-    const [products, setProducts] = useState<Product[]>([]);
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [allSalesHistory, setAllSalesHistory] = useState<SaleData[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [notes, setNotes] = useState<Note[]>(initialNotes);
-    const [salesHistory, setSalesHistory] = useState<SaleData[]>([]);
     const [pendingSaleData, setPendingSaleData] = useState<SaleData | null>(null);
     const [isSaleFinalized, setIsSaleFinalized] = useState<boolean>(false);
     const [theme, setTheme] = useState<Theme>('dark');
@@ -2165,7 +2296,7 @@ const App = () => {
         checkSession();
     }, []);
 
-    // Main data fetching effect, reacts to user login and admin shop selection
+    // Main data fetching effect
     useEffect(() => {
         const fetchData = async () => {
             if (!currentUser) return;
@@ -2173,55 +2304,35 @@ const App = () => {
             setAppError(null);
 
             try {
-                // Phase 1: Fetch global/user-level data for all roles
-                const baseRequests: Promise<any>[] = [
+                const [shopsData, customersData, usersData] = await Promise.all([
                     api.getShops(),
                     api.getCustomers(),
-                ];
-                if (currentUser.role === 'admin') {
-                    baseRequests.push(api.getUsers());
-                }
-
-                const [shopsData, customersData, usersData] = await Promise.all(baseRequests);
+                    currentUser.role === 'admin' ? api.getUsers() : Promise.resolve([]),
+                ]);
                 const allShops = shopsData || [];
                 setShops(allShops);
                 setCustomers(customersData || []);
                 if (currentUser.role === 'admin') {
                     setUsers(usersData || []);
                 }
-
-                // Phase 2: Determine which shop's data to fetch
+                
                 let shopIdToFetch: number | undefined;
-                if (currentUser.role === 'admin') {
-                    // For admin, if selectedShopId is not set, default to the first shop
-                    shopIdToFetch = selectedShopId || allShops[0]?.id;
-                    if(shopIdToFetch && !selectedShopId) {
-                        setSelectedShopId(shopIdToFetch);
-                    }
+                if(currentUser.role === 'admin') {
+                    // For admin, fetch ALL sales and products
+                    shopIdToFetch = undefined; 
                 } else {
                     shopIdToFetch = currentUser.shopId;
-                }
-
-                if (!shopIdToFetch) {
-                    if (currentUser.role !== 'admin') {
+                     if (!shopIdToFetch) {
                         throw new Error("User has no assigned shop.");
-                    } else {
-                        // Admin has no shops to manage, clear shop-specific data
-                        setProducts([]);
-                        setSalesHistory([]);
-                        setIsLoading(false);
-                        return;
                     }
                 }
 
-                // Phase 3: Fetch shop-specific data
                 const [productsData, salesData] = await Promise.all([
                     api.getProducts(shopIdToFetch),
                     api.getSales(shopIdToFetch),
                 ]);
-
-                setProducts(productsData || []);
-                setSalesHistory((salesData || []).map(s => ({ ...s, date: new Date(s.date) })));
+                setAllProducts(productsData || []);
+                setAllSalesHistory((salesData || []).map(s => ({ ...s, date: new Date(s.date) })));
 
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : "Failed to load application data.";
@@ -2232,7 +2343,24 @@ const App = () => {
         };
 
         fetchData();
-    }, [currentUser, selectedShopId]); // Re-fetches if user changes or admin selects a different shop
+    }, [currentUser]); // Re-fetches only when user logs in/out
+
+    const currentShopContextId = useMemo(() => {
+        if (currentUser?.role === 'admin') return selectedShopId;
+        return currentUser?.shopId || null;
+    }, [currentUser, selectedShopId]);
+    
+    const visibleProducts = useMemo(() => {
+        if (currentUser?.role !== 'admin') return allProducts;
+        if (!selectedShopId) return allProducts;
+        return allProducts.filter(p => p.shopId === selectedShopId);
+    }, [allProducts, currentUser, selectedShopId]);
+
+    const visibleSalesHistory = useMemo(() => {
+        if (currentUser?.role !== 'admin') return allSalesHistory;
+        if (!selectedShopId) return allSalesHistory;
+        return allSalesHistory.filter(s => s.shopId === selectedShopId);
+    }, [allSalesHistory, currentUser, selectedShopId]);
 
 
     const updateCurrentSaleSession = (updates: Partial<SaleSession>) => {
@@ -2258,24 +2386,28 @@ const App = () => {
     const handleLogin = (user: User) => {
         sessionStorage.setItem('currentUser', JSON.stringify(user));
         setCurrentUser(user);
-        setCurrentPage('New Sale');
+        setCurrentPage(user.role === 'admin' ? 'Admin Dashboard' : 'New Sale');
     };
 
     const handleLogout = () => {
         sessionStorage.removeItem('authToken');
         sessionStorage.removeItem('currentUser');
         setCurrentUser(null);
-        setProducts([]);
+        setAllProducts([]);
         setCustomers([]);
-        setSalesHistory([]);
+        setAllSalesHistory([]);
         setUsers([]);
         setShops([]);
         setSelectedShopId(null);
     };
 
-    const handleAddProduct = async (newProductData: Omit<Product, 'id'>): Promise<Product> => {
-        const newProduct = await api.addProduct(newProductData);
-        setProducts(prev => [...prev, newProduct]);
+    const handleAddProduct = async (newProductData: Omit<Product, 'id' | 'shopId'>): Promise<Product> => {
+        if (!currentShopContextId) {
+            throw new Error("Cannot add a product without a selected shop.");
+        }
+        const fullProductData = { ...newProductData, shopId: currentShopContextId };
+        const newProduct = await api.addProduct(fullProductData);
+        setAllProducts(prev => [...prev, newProduct]);
         return newProduct;
     };
     
@@ -2290,7 +2422,7 @@ const App = () => {
     const handleUpdateProduct = async (updatedProduct: Product) => {
         try {
             const returnedProduct = await api.updateProduct(updatedProduct.id, updatedProduct);
-            setProducts(prev => prev.map(p => p.id === returnedProduct.id ? returnedProduct : p));
+            setAllProducts(prev => prev.map(p => p.id === returnedProduct.id ? returnedProduct : p));
         } catch (error) {
             console.error("Failed to update product:", error);
             // Optionally show an error to the user
@@ -2335,16 +2467,14 @@ const App = () => {
         await api.createSale(pendingSaleData);
         
         // Optimistically update history and reset state
-        setSalesHistory(prev => [pendingSaleData, ...prev]);
+        setAllSalesHistory(prev => [pendingSaleData, ...prev]);
         setIsSaleFinalized(true);
         resetCurrentSaleSession();
 
         // Refetch critical data in the background
-        const shopIdToRefresh = currentUser?.role === 'admin' ? selectedShopId : currentUser?.shopId;
-        if (shopIdToRefresh) {
-            api.getProducts(shopIdToRefresh).then(setProducts);
-            api.getCustomers().then(setCustomers);
-        }
+        const shopIdToRefresh = currentUser?.role === 'admin' ? undefined : currentUser?.shopId;
+        api.getProducts(shopIdToRefresh).then(setAllProducts);
+        api.getCustomers().then(setCustomers);
 
         await new Promise(resolve => setTimeout(resolve, 800));
         handleNavigate('New Sale');
@@ -2366,6 +2496,17 @@ const App = () => {
         setCurrentPage('Invoice');
     };
     
+    const handleShopChange = (shopId: number) => {
+        // 0 is the value for "All Shops"
+        setSelectedShopId(shopId === 0 ? null : shopId);
+        // If an admin selects a specific shop, take them to the reports page for that shop
+        if (shopId !== 0) {
+            setCurrentPage('Reports');
+        } else {
+            setCurrentPage('Admin Dashboard');
+        }
+    };
+
     if (isLoading) {
         return <div className={`theme-${theme} loading-container`}><h2>Loading BillEase POS...</h2></div>;
     }
@@ -2380,9 +2521,11 @@ const App = () => {
   
     const renderPage = () => {
         switch (currentPage) {
+            case 'Admin Dashboard':
+                return currentUser.role === 'admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <p>Access Denied</p>;
             case 'New Sale':
                 return <NewSalePage 
-                    products={products} 
+                    products={visibleProducts} 
                     customers={customers} 
                     onPreviewInvoice={handlePreviewInvoice} 
                     onAddProduct={handleAddProduct} 
@@ -2392,9 +2535,10 @@ const App = () => {
                     onSessionUpdate={updateCurrentSaleSession}
                     activeBillIndex={activeBillIndex}
                     onBillChange={setActiveBillIndex}
+                    currentShopId={currentShopContextId}
                 />;
             case 'Product Inventory':
-                return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} />;
+                return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} shops={shops} />;
             case 'Invoice':
                  return <InvoicePage 
                     saleData={pendingSaleData} 
@@ -2415,16 +2559,16 @@ const App = () => {
             case 'Balance Due':
                 return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports':
-                return <ReportsPage salesHistory={salesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
+                return <ReportsPage salesHistory={visibleSalesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
             case 'Notes':
                 return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings':
                  return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
             case 'Shop Management':
-                return <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} />;
+                return currentUser.role === 'admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} /> : <p>Access Denied</p>;
             default:
-                return <NewSalePage 
-                    products={products} 
+                 return currentUser.role === 'admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage 
+                    products={visibleProducts} 
                     customers={customers} 
                     onPreviewInvoice={handlePreviewInvoice} 
                     onAddProduct={handleAddProduct} 
@@ -2434,11 +2578,10 @@ const App = () => {
                     onSessionUpdate={updateCurrentSaleSession}
                     activeBillIndex={activeBillIndex}
                     onBillChange={setActiveBillIndex}
+                    currentShopId={currentShopContextId}
                 />;
         }
     };
-
-    const currentShopContextId = currentUser.role === 'admin' ? selectedShopId : currentUser.shopId || null;
 
     return (
         <>
@@ -2448,8 +2591,8 @@ const App = () => {
                 onLogout={handleLogout} 
                 appName={appName}
                 shops={shops}
-                selectedShopId={currentShopContextId}
-                onShopChange={setSelectedShopId}
+                selectedShopId={selectedShopId}
+                onShopChange={handleShopChange}
              />
             <main className="app-main">
                 {renderPage()}
