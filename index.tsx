@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -472,8 +473,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         setActiveCustomer(foundCustomer || null);
         if (foundCustomer && !customerName) onSessionUpdate({ customerName: foundCustomer.name });
         if (!foundCustomer) setActiveCustomer(null);
-        onSessionUpdate({ amountPaid: '', totalBalanceDueStr: '' });
-    }, [customerMobile, customers]);
+    }, [customerMobile, customers, customerName, onSessionUpdate]);
     useEffect(() => {
         if (saleItems.length > prevSaleItemsLengthRef.current) {
             const lastQuantityInput = document.querySelector<HTMLInputElement>(`.sales-grid tbody tr:last-child input[data-field="quantity"]`);
@@ -581,6 +581,14 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         recognition.onerror = (event: any) => { if (event.error !== 'no-speech' && event.error !== 'aborted') { setVoiceError(`Error: ${event.error}`); setTimeout(() => setVoiceError(''), 3000); } };
     };
     
+    const handleCustomerMobileChange = (mobile: string) => {
+        onSessionUpdate({
+            customerMobile: mobile,
+            amountPaid: '',
+            totalBalanceDueStr: ''
+        });
+    };
+
     const {
         grossTotal, returnTotal, netSaleTotal, taxAmount, currentSaleGrandTotal,
         previousBalance, totalAmountDue
@@ -646,15 +654,12 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         let finalTotalBalanceDue: number;
     
         if (wasBalanceExplicitlySetByUser) {
-            // Case: User explicitly entered a balance. This is the source of truth.
             finalTotalBalanceDue = parseFloat(totalBalanceDueStr) || 0;
             finalAmountPaid = totalAmountDue - finalTotalBalanceDue;
         } else {
-            // Case: User did not enter a balance. Assume full payment.
-            // We use amountPaid field in case they are calculating change.
             const parsedAmountPaid = parseFloat(amountPaid);
             finalAmountPaid = isNaN(parsedAmountPaid) ? totalAmountDue : parsedAmountPaid;
-            finalTotalBalanceDue = 0; // The balance is zero, any overpayment is change (not negative balance).
+            finalTotalBalanceDue = totalAmountDue - finalAmountPaid;
         }
         
         onPreviewInvoice({ 
@@ -673,7 +678,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             amountPaid: finalAmountPaid, 
             totalBalanceDue: finalTotalBalanceDue, 
             returnReason,
-            paymentDetailsEntered: wasBalanceExplicitlySetByUser
+            paymentDetailsEntered: wasBalanceExplicitlySetByUser || amountPaid.trim() !== ''
         });
     };
 
@@ -692,7 +697,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                     </div>
                     <div className="customer-details">
                          <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value })} onKeyDown={handleCustomerNameKeydown} /></div>
-                        <div className="form-group"><label htmlFor="customer-mobile">Customer Mobile Number</label><input id="customer-mobile" type="text" className="input-field" ref={mobileInputRef} value={customerMobile} onChange={e => onSessionUpdate({ customerMobile: e.target.value })} onKeyDown={handleMobileKeydown} /></div>
+                        <div className="form-group"><label htmlFor="customer-mobile">Customer Mobile Number</label><input id="customer-mobile" type="text" className="input-field" ref={mobileInputRef} value={customerMobile} onChange={e => handleCustomerMobileChange(e.target.value)} onKeyDown={handleMobileKeydown} /></div>
                     </div>
                     <div className="product-search-area">
                         <div className="form-group product-search-container">
@@ -970,9 +975,14 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                         {previousBalance !== 0 && (
                             <div className="total-row"><span>{languageMode === 'English' ? 'Previous Balance' : 'முந்தைய இருப்பு'}</span><span>{formatCurrency(previousBalance)}</span></div>
                         )}
-                        <div className="total-row"><span>{languageMode === 'English' ? 'Total balance due' : 'செலுத்த வேண்டிய మొత్తం'}</span><span>{formatCurrency(previousBalance + grandTotal)}</span></div>
                         {paymentDetailsEntered && (
                             <div className="total-row"><span>{languageMode === 'English' ? 'Amount Paid' : 'செலுத்திய தொகை'}</span><span>{formatCurrency(amountPaid)}</span></div>
+                        )}
+                        {paymentDetailsEntered && totalBalanceDue > 0 && (
+                            <div className="total-row grand-total">
+                                <span>{languageMode === 'English' ? 'Total Balance Due' : 'மொத்த நிலுவை'}</span>
+                                <span>{formatCurrency(totalBalanceDue)}</span>
+                            </div>
                         )}
                     </div>
                     </div>{invoiceFooter && (isFooterEditing ? <input ref={footerInputRef} type="text" value={invoiceFooter} onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })} onBlur={() => setIsFooterEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsFooterEditing(false); }} className="invoice-footer-input" /> : <p className="invoice-custom-footer" onDoubleClick={() => setIsFooterEditing(true)} title="Double-click to edit">{invoiceFooter}</p>)}</footer>
