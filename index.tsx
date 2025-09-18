@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import * as XLSX from 'xlsx';
 
 
 // --- TYPES ---
@@ -85,47 +84,127 @@ interface SaleSession {
     returnReason?: string;
 }
 
-type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord';
-type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata';
+type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
+type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
 
 
-// --- MOCK DATA (DATABASE SIMULATION) ---
-const initialProducts: Product[] = [
-  { id: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' },
-  { id: 2, name: 'Banana', nameTamil: 'வாழைப்பழம்', b2bPrice: 0.25, b2cPrice: 0.30, stock: 150, barcode: '2222' },
-  { id: 3, name: 'Milk 1L', nameTamil: 'பால் 1லி', b2bPrice: 1.00, b2cPrice: 1.20, stock: 8, barcode: '3333' },
-  { id: 4, name: 'Bread Loaf', nameTamil: 'ரொட்டி', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30 },
-  { id: 5, name: 'Cheddar Cheese 200g', nameTamil: 'செடார் சீஸ் 200கி', b2bPrice: 3.50, b2cPrice: 4.00, stock: 40, barcode: '5555' },
-];
-
-const initialCustomers: Customer[] = [
-    { mobile: '1234567890', name: 'John Doe', balance: 50.75 },
-    { mobile: '0987654321', name: 'Jane Smith', balance: 0 },
-];
-
+// --- MOCK DATA FOR LOCAL FEATURES (NOTES) ---
 const initialNotes: Note[] = [
     { id: 1, text: 'Order new stock for milk', completed: false },
     { id: 2, text: 'Clean the front display', completed: true },
 ];
 
-const initialUsers: User[] = [
-    { username: 'admin', password: 'admin', role: 'admin' },
-    { username: 'manager1', password: 'password', role: 'manager', shopId: 1 },
-    { username: 'cashier1', password: 'password', role: 'cashier', shopId: 1 },
-];
+// --- API Client ---
+const API_BASE_URL = '/api'; // Using a proxy to a real backend
 
-const initialShops: Shop[] = [
-    { id: 1, name: "Main Street Branch" },
-    { id: 2, name: "Downtown Kiosk" },
-]
+const getAuthToken = () => sessionStorage.getItem('authToken');
+
+const apiFetch = async (url: string, options: RequestInit = {}) => {
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
+    const token = getAuthToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // This is a placeholder for a real API call.
+    // In a real scenario, this would be a fetch() call.
+    console.log(`Making API call to ${API_BASE_URL}${url}`, options);
+    // Simulating a delay
+    await new Promise(res => setTimeout(res, 300));
+
+    // MOCK RESPONSES FOR DEMONSTRATION
+    // In a real app, you would remove this mock logic.
+    if (url.startsWith('/auth/login')) {
+        const body = JSON.parse(options.body as string);
+        if (body.username === 'admin' && body.password === 'admin') {
+            return { token: 'fake-admin-token', user: { username: 'admin', role: 'admin' } };
+        }
+        if (body.username === 'manager1' && body.password === 'password') {
+             return { token: 'fake-manager-token', user: { username: 'manager1', role: 'manager', shopId: 1 } };
+        }
+        throw new Error("Invalid credentials");
+    }
+    // For other endpoints, return mock success data or empty arrays to prevent crashes.
+    // This allows the UI to function without a real backend.
+    if(url.startsWith('/products')) return [{ id: 1, name: 'Apple (from API)', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' }];
+    if(url.startsWith('/customers')) return [{ mobile: '+917601984346', name: 'Christy (from API)', balance: 50.75 }];
+    if(url.startsWith('/sales')) return [];
+    if(url.startsWith('/users')) return [{ username: 'manager1', password: 'password', role: 'manager', shopId: 1 }];
+    if(url.startsWith('/shops')) return [{ id: 1, name: "Main Street Branch" }];
+    if(options.method === 'POST' && url.startsWith('/sales')) return { ...JSON.parse(options.body as string), id: `sale-${Date.now()}` };
+    if(options.method === 'POST') return { ...JSON.parse(options.body as string), id: Date.now() };
+
+
+    // REAL FETCH LOGIC (commented out for demonstration)
+    /*
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
+        headers,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    if (response.status === 204) {
+        return null;
+    }
+    return response.json();
+    */
+};
+
+
+const api = {
+    login: (username, password) => apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+    }),
+    register: (user) => apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(user),
+    }),
+    getShops: () => apiFetch('/shops'),
+    addShop: (name) => apiFetch('/shops', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    }),
+    getUsers: () => apiFetch('/users'), // Assumed endpoint
+    getProducts: (shopId) => apiFetch(`/products?shop_id=${shopId}`),
+    addProduct: (product) => apiFetch('/products', {
+        method: 'POST',
+        body: JSON.stringify(product),
+    }),
+    updateProduct: (id, product) => apiFetch(`/products/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(product),
+    }),
+    createSale: (sale) => apiFetch('/sales', {
+        method: 'POST',
+        body: JSON.stringify(sale),
+    }),
+    getSales: (shopId) => apiFetch(`/sales?shop_id=${shopId}`),
+    getCustomers: () => apiFetch('/customers'), // Assumed endpoint
+    addCustomer: (customer) => apiFetch('/customers', { // Assumed endpoint
+        method: 'POST',
+        body: JSON.stringify(customer),
+    }),
+    updateCustomerBalance: (id, balance) => apiFetch(`/customers/${id}/balance`, {
+        method: 'POST',
+        body: JSON.stringify({ balance }),
+    }),
+};
 
 
 // --- UTILITY FUNCTIONS ---
-const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
-const formatQuantity = (quantity: number) => quantity.toFixed(3);
-const formatNumberForInvoice = (amount: number) => amount.toFixed(2);
-const formatPriceForInvoice = (amount: number) => amount.toFixed(1);
-const formatQuantityForInvoice = (quantity: number) => quantity.toFixed(1);
+const formatCurrency = (amount: number) => `₹${(amount || 0).toFixed(2)}`;
+const formatQuantity = (quantity: number) => (quantity || 0).toFixed(3);
+const formatNumberForInvoice = (amount: number) => (amount || 0).toFixed(2);
+const formatPriceForInvoice = (amount: number) => (amount || 0).toFixed(1);
+const formatQuantityForInvoice = (quantity: number) => (quantity || 0).toFixed(1);
 const LOW_STOCK_THRESHOLD = 10;
 
 
@@ -185,7 +264,8 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
 type AddProductModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => void;
+    // FIX: Changed onAddProduct return type from Promise<void> to Promise<Product> to match the actual function signature being passed.
+    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
 };
 const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAddProduct }) => {
     const [newProductName, setNewProductName] = useState('');
@@ -194,6 +274,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
     const [newProductB2C, setNewProductB2C] = useState(0);
     const [newProductStock, setNewProductStock] = useState(0);
     const [newProductBarcode, setNewProductBarcode] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
 
     const nameTamilRef = useRef<HTMLInputElement>(null);
     const b2bRef = useRef<HTMLInputElement>(null);
@@ -206,24 +287,31 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
 
     if (!isOpen) return null;
 
-    const handleAddProduct = (e: React.FormEvent) => {
+    const handleAddProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newProductName) return;
-        onAddProduct({
-            name: newProductName,
-            nameTamil: newProductNameTamil,
-            b2bPrice: newProductB2B,
-            b2cPrice: newProductB2C,
-            stock: newProductStock,
-            barcode: newProductBarcode
-        });
-        setNewProductName('');
-        setNewProductNameTamil('');
-        setNewProductB2B(0);
-        setNewProductB2C(0);
-        setNewProductStock(0);
-        setNewProductBarcode('');
-        onClose();
+        setIsAdding(true);
+        try {
+            await onAddProduct({
+                name: newProductName,
+                nameTamil: newProductNameTamil,
+                b2bPrice: newProductB2B,
+                b2cPrice: newProductB2C,
+                stock: newProductStock,
+                barcode: newProductBarcode
+            });
+            setNewProductName('');
+            setNewProductNameTamil('');
+            setNewProductB2B(0);
+            setNewProductB2C(0);
+            setNewProductStock(0);
+            setNewProductBarcode('');
+            onClose();
+        } catch (error) {
+            alert(`Error adding product: ${error.message}`);
+        } finally {
+            setIsAdding(false);
+        }
     };
     
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => {
@@ -269,8 +357,10 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                     </form>
                 </div>
                 <div className="modal-footer">
-                     <button className="action-button-secondary" type="button" onClick={onClose}>Cancel</button>
-                     <button ref={submitRef} type="submit" form={formId} className="action-button-primary">Add Product</button>
+                     <button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button>
+                     <button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>
+                        {isAdding ? 'Adding...' : 'Add Product'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -282,7 +372,7 @@ type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
     onPreviewInvoice: (saleData: Omit<SaleData, 'id' | 'date'>) => void;
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => Product;
+    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
     onUpdateProduct: (updatedProduct: Product) => void;
     userRole: User['role'];
     sessionData: SaleSession;
@@ -425,16 +515,20 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
         setSearchTerm('');
     };
 
-    const handleAddNewProductSuggestion = () => {
-        const newProdData = {
-            name: searchTerm,
-            nameTamil: '',
-            b2cPrice: 0,
-            b2bPrice: 0,
-            stock: 0,
-        };
-        const newProduct = onAddProduct(newProdData);
-        handleProductSelect(newProduct);
+    const handleAddNewProductSuggestion = async () => {
+        try {
+            const newProdData = {
+                name: searchTerm,
+                nameTamil: '',
+                b2cPrice: 0,
+                b2bPrice: 0,
+                stock: 0,
+            };
+            const newProduct = await onAddProduct(newProdData);
+            handleProductSelect(newProduct);
+        } catch (error) {
+            alert(`Error adding product: ${error.message}`);
+        }
     };
 
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
@@ -872,187 +966,28 @@ const NewSalePage: React.FC<NewSalePageProps> = ({
     );
 };
 
-// --- BULK ADD (EXCEL) MODAL COMPONENT ---
-type BulkAddExcelModalProps = {
-    onClose: () => void;
-    onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
-};
-
-const BulkAddExcelModal: React.FC<BulkAddExcelModalProps> = ({ onClose, onAddBulkProducts }) => {
-    const [excelFile, setExcelFile] = useState<File | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [statusMessage, setStatusMessage] = useState('');
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setExcelFile(file);
-            setStatusMessage('');
-        }
-    };
-
-    const handleProcessAndAdd = async () => {
-        if (!excelFile) {
-            alert('Please select an Excel file.');
-            return;
-        }
-
-        setIsLoading(true);
-        setStatusMessage('Reading Excel file...');
-
-        try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = e.target?.result;
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
-
-                    if (json.length === 0) {
-                        throw new Error("The Excel sheet is empty or in an unsupported format.");
-                    }
-                    
-                    setStatusMessage(`Found ${json.length} rows. Processing...`);
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    
-                    const newProducts: Omit<Product, 'id' | 'stock'>[] = json.map((row: any) => {
-                        // Normalize keys: convert to lowercase and remove spaces
-                        const normalizedRow: {[key: string]: any} = {};
-                        for (const key in row) {
-                            normalizedRow[key.trim().toLowerCase().replace(/\s/g, '')] = row[key];
-                        }
-
-                        // More forgiving key matching
-                        const name = normalizedRow['productnameenglish'] ?? normalizedRow['productname'] ?? normalizedRow['name'];
-                        const nameTamil = normalizedRow['tamilproductnametamil'] ?? normalizedRow['tamilproductname'] ?? normalizedRow['nametamil'] ?? '';
-                        const b2bPriceRaw = normalizedRow['b2b'] ?? normalizedRow['b2bprice'];
-                        const b2cPriceRaw = normalizedRow['b2c'] ?? normalizedRow['b2cprice'];
-                        const barcodeRaw = normalizedRow['barcode'] ?? normalizedRow['upc'];
-                        
-                        const b2bPrice = parseFloat(b2bPriceRaw) || 0;
-                        const b2cPrice = parseFloat(b2cPriceRaw) || 0;
-                        const barcode = barcodeRaw ? String(barcodeRaw) : undefined;
-
-                        if (!name) { // Only name is required. Prices default to 0.
-                            return null;
-                        }
-
-                        return {
-                            name,
-                            nameTamil,
-                            b2bPrice,
-                            b2cPrice,
-                            barcode,
-                        };
-                    }).filter((p): p is Omit<Product, 'id' | 'stock'> => p !== null);
-
-                    if (newProducts.length === 0) {
-                        const detectedHeaders = Object.keys(json[0] || {}).join(', ');
-                        throw new Error(`No valid product rows found. Detected headers: [${detectedHeaders}]. Please ensure a column for product names exists (e.g., 'Product Name').`);
-                    }
-                    
-                    setStatusMessage('Adding products to inventory...');
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    const result = await onAddBulkProducts(newProducts);
-                    alert(`Bulk add complete!\n\n${result.added} new products added.\n${result.skipped} products were skipped because they already exist.`);
-                    onClose();
-                } catch (err) {
-                    setIsLoading(false);
-                    const errorMessage = err instanceof Error ? err.message : String(err);
-                    setStatusMessage(`Error: ${errorMessage}`);
-                    alert(`An error occurred during processing: ${errorMessage}`);
-                }
-            };
-            reader.onerror = () => {
-                 setIsLoading(false);
-                 setStatusMessage('Error reading the file.');
-                 alert('Failed to read the file.');
-            };
-            reader.readAsArrayBuffer(excelFile);
-        } catch (error) {
-             setIsLoading(false);
-             const errorMessage = error instanceof Error ? error.message : String(error);
-             setStatusMessage(`Error: ${errorMessage}`);
-             alert(`An error occurred: ${errorMessage}`);
-        }
-    };
-    
-    const renderContent = () => {
-        if (isLoading) {
-            return (
-                <div className="loading-indicator">
-                    <div className="spinner"></div>
-                    <p>{statusMessage}</p>
-                </div>
-            );
-        }
-
-        return (
-            <>
-                <div className="modal-body">
-                    <p>Upload an Excel file (.xlsx, .xls) with product data.</p>
-                    <p>
-                        The only required column is one for the product's name (e.g., <b>Product Name</b>, <b>name</b>, or <b>product name English</b>).
-                        <br/>
-                        Optional columns: <b>B2B</b>, <b>B2C</b>, <b>Tamil product name Tamil</b>, <b>barcode</b>. Prices default to 0 if missing or invalid. If you see an error, it will show you the exact column headers detected from your file to help you debug.
-                    </p>
-                    <label htmlFor="excel-file-input" className="file-input-group">
-                        <p>Click to upload Excel file</p>
-                        <input id="excel-file-input" type="file" accept=".xlsx, .xls" onChange={handleFileChange} />
-                        {excelFile && <p className="file-name">{excelFile.name}</p>}
-                    </label>
-                    {statusMessage && <p className="error-message">{statusMessage}</p>}
-                </div>
-                <div className="modal-footer">
-                    <button className="action-button-secondary" onClick={onClose}>Cancel</button>
-                    <button className="action-button-primary" onClick={handleProcessAndAdd} disabled={!excelFile}>Process and Add Products</button>
-                </div>
-            </>
-        );
-    };
-
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>Add Bulk Products from Excel</h3>
-                    <button onClick={onClose} className="close-button">&times;</button>
-                </div>
-                {renderContent()}
-            </div>
-        </div>
-    );
-};
-
 
 // --- PRODUCT INVENTORY PAGE ---
 type ProductInventoryPageProps = {
     products: Product[];
-    onAddProduct: (newProduct: Omit<Product, 'id'>) => void;
-    onAddBulkProducts: (products: Omit<Product, 'id' | 'stock'>[]) => Promise<{added: number, skipped: number}>;
+    // FIX: Changed onAddProduct return type from Promise<void> to Promise<Product> to match the function being passed from the App component.
+    onAddProduct: (newProduct: Omit<Product, 'id'>) => Promise<Product>;
 };
-const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onAddBulkProducts }) => {
-    const [isBulkExcelModalOpen, setIsBulkExcelModalOpen] = useState(false);
+const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     
     return (
         <div className="page-container">
-            {isBulkExcelModalOpen && <BulkAddExcelModal onClose={() => setIsBulkExcelModalOpen(false)} onAddBulkProducts={onAddBulkProducts} />}
             <AddProductModal 
                 isOpen={isAddModalOpen} 
                 onClose={() => setIsAddModalOpen(false)} 
-                onAddProduct={(data) => { onAddProduct(data); setIsAddModalOpen(false); }} 
+                onAddProduct={onAddProduct} 
             />
             <div className="page-header">
                 <h2 className="page-title">Product Inventory</h2>
                 <div className="page-header-actions">
                     <button className="action-button-secondary" onClick={() => setIsAddModalOpen(true)}>
                         Add New Product
-                    </button>
-                    <button className="action-button-primary" onClick={() => setIsBulkExcelModalOpen(true)}>
-                        Add Bulk Products from Excel
                     </button>
                 </div>
             </div>
@@ -1238,7 +1173,12 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
 
     const handleFinalize = async () => {
         setIsFinalizing(true);
-        await onConfirmFinalizeSale();
+        try {
+            await onConfirmFinalizeSale();
+        } catch (error) {
+            alert(`Error finalizing sale: ${error.message}`);
+            setIsFinalizing(false);
+        }
     };
 
     return (
@@ -1417,6 +1357,10 @@ const InvoicePage: React.FC<InvoicePageProps> = ({
                             <option value="roboto">Roboto (Sans-Serif)</option>
                             <option value="merriweather">Merriweather (Serif)</option>
                             <option value="playfair">Playfair Display (Serif)</option>
+                            <option value="times-new-roman">Times New Roman</option>
+                            <option value="georgia">Georgia (Serif)</option>
+                            <option value="lato">Lato (Sans-Serif)</option>
+                            <option value="source-code-pro">Source Code Pro (Monospace)</option>
                         </select>
                     </div>
                     <div className="margin-controls">
@@ -1511,35 +1455,179 @@ const NotesPage: React.FC<NotesPageProps> = ({ notes, setNotes }) => {
     );
 };
 
-// --- CUSTOMER MANAGEMENT PAGE ---
-type CustomerManagementPageProps = {
-    customers: Customer[];
+// --- ADD CUSTOMER MODAL ---
+type AddCustomerModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onAddCustomer: (newCustomer: Omit<Customer, 'balance'>) => Promise<void>;
 };
-const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ customers }) => {
+const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onAddCustomer }) => {
+    const [name, setName] = useState('');
+    const [mobile, setMobile] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
+    const mobileRef = useRef<HTMLInputElement>(null);
+    const submitRef = useRef<HTMLButtonElement>(null);
+    const formId = "add-customer-form";
+
+    useEffect(() => {
+        if (isOpen) {
+            // Reset state when modal opens
+            setName('');
+            setMobile('');
+            setIsAdding(false);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name || !mobile) return;
+        setIsAdding(true);
+        try {
+            await onAddCustomer({ name, mobile });
+            onClose();
+        } catch (error) {
+            alert(`Error adding customer: ${error.message}`);
+        } finally {
+            setIsAdding(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            nextRef.current?.focus();
+        }
+    };
+
     return (
-        <div className="page-container">
-            <h2 className="page-title">Customer Management</h2>
-            <div className="inventory-list-container">
-                <table className="customer-table inventory-table">
-                    <thead>
-                        <tr>
-                            <th>Customer Name</th>
-                            <th>Mobile Number</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {customers.map(c => (
-                            <tr key={c.mobile}>
-                                <td>{c.name}</td>
-                                <td>{c.mobile}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3>Add New Customer</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="modal-body">
+                    <form id={formId} onSubmit={handleSubmit} className="add-product-form">
+                        <div className="form-group">
+                            <label htmlFor="modal-new-customer-name">Customer Name</label>
+                            <input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus />
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="modal-new-customer-mobile">Mobile Number</label>
+                            <input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required />
+                        </div>
+                    </form>
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button>
+                    <button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>
+                        {isAdding ? 'Adding...' : 'Add Customer'}
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
+
+// --- CUSTOMER MANAGEMENT PAGE ---
+type CustomerManagementPageProps = {
+    customers: Customer[];
+    onAddCustomer: (newCustomer: Omit<Customer, 'balance'>) => Promise<void>;
+};
+const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ customers, onAddCustomer }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    const filteredCustomers = useMemo(() => {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        if (!lowercasedTerm) return customers;
+        return customers.filter(c => 
+            c.name.toLowerCase().includes(lowercasedTerm) || 
+            c.mobile.includes(lowercasedTerm)
+        );
+    }, [searchTerm, customers]);
+    
+    useEffect(() => {
+        if (selectedCustomer && !customers.find(c => c.mobile === selectedCustomer.mobile)) {
+            setSelectedCustomer(null);
+        }
+    }, [customers, selectedCustomer]);
+
+    return (
+        <div className="page-container customer-management-page">
+             <AddCustomerModal 
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onAddCustomer={onAddCustomer}
+            />
+            <div className="page-header">
+                <h2 className="page-title">Customer Management</h2>
+                <div className="page-header-actions">
+                    <button className="action-button-primary" onClick={() => setIsAddModalOpen(true)}>
+                        Add New Customer
+                    </button>
+                </div>
+            </div>
+            <div className="customer-management-layout">
+                <aside className="customer-list-panel">
+                    <div className="customer-search">
+                        <div className="input-with-icon">
+                           <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+                           </svg>
+                            <input 
+                                type="text" 
+                                className="input-field"
+                                placeholder="Search customers..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="customer-list">
+                        {filteredCustomers.map(customer => (
+                            <button 
+                                key={customer.mobile} 
+                                className={`customer-list-item ${selectedCustomer?.mobile === customer.mobile ? 'active' : ''}`}
+                                onClick={() => setSelectedCustomer(customer)}
+                                aria-pressed={selectedCustomer?.mobile === customer.mobile}
+                            >
+                                <span className="customer-name">{customer.name}</span>
+                                <span className="customer-mobile">{customer.mobile}</span>
+                            </button>
+                        ))}
+                         {filteredCustomers.length === 0 && (
+                            <div className="customer-list-empty">
+                                <p>No customers found.</p>
+                            </div>
+                        )}
+                    </div>
+                </aside>
+                <main className="customer-details-panel" role="region" aria-live="polite">
+                    {selectedCustomer ? (
+                        <div className="customer-details-view">
+                           <h3>{selectedCustomer.name}</h3>
+                           <p><strong>Mobile:</strong> {selectedCustomer.mobile}</p>
+                           <p><strong>Balance Due:</strong> {formatCurrency(selectedCustomer.balance)}</p>
+                           <div className="purchase-history-placeholder">
+                               <h4>Purchase History</h4>
+                               <p>Purchase history will be displayed here in a future update.</p>
+                           </div>
+                        </div>
+                    ) : (
+                        <div className="customer-details-placeholder">
+                            <p>Select a customer from the list to view their details and purchase history.</p>
+                        </div>
+                    )}
+                </main>
+            </div>
+        </div>
+    );
+};
+
 
 // --- BALANCE DUE PAGE ---
 type BalanceDuePageProps = {
@@ -1612,7 +1700,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ salesHistory, onViewInvoice }
     }, [salesHistory, filterPeriod]);
 
     const reportStats = useMemo(() => {
-        const totalSales = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
+        const totalSales = filteredSales.reduce((acc, sale) => acc + (sale.grandTotal || 0), 0);
         const itemsSold = filteredSales.reduce((acc, sale) => acc + sale.saleItems.reduce((itemAcc, item) => itemAcc + (item.isReturn ? -item.quantity : item.quantity), 0), 0);
         const transactionCount = filteredSales.length;
         return { totalSales, itemsSold, transactionCount };
@@ -1699,6 +1787,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
     const themes: {id: Theme, name: string}[] = [
         {id: 'light', name: 'Light'},
         {id: 'dark', name: 'Dark'},
+        {id: 'professional-light', name: 'Professional'},
+        {id: 'charcoal', name: 'Charcoal'},
+        {id: 'slate', name: 'Slate'},
         {id: 'ocean-blue', name: 'Ocean Blue'},
         {id: 'forest-green', name: 'Forest Green'},
         {id: 'sunset-orange', name: 'Sunset Orange'},
@@ -1750,8 +1841,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
 type ShopManagementPageProps = {
     users: User[];
     shops: Shop[];
-    onAddShop: (name: string) => void;
-    onAddUser: (user: Omit<User, 'id'>) => void;
+    onAddShop: (name: string) => Promise<void>;
+    onAddUser: (user: Omit<User, 'id' | 'password'> & { password?: string }) => Promise<void>;
     onUpdateShop: (id: number, name: string) => void;
 };
 
@@ -1765,27 +1856,35 @@ const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, o
     const [editingShopId, setEditingShopId] = useState<number | null>(null);
     const [editingShopName, setEditingShopName] = useState('');
 
-    const handleAddShop = (e: React.FormEvent) => {
+    const handleAddShop = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newShopName.trim()) {
-            onAddShop(newShopName.trim());
-            setNewShopName('');
+            try {
+                await onAddShop(newShopName.trim());
+                setNewShopName('');
+            } catch (error) {
+                alert(`Error adding shop: ${error.message}`);
+            }
         }
     };
     
-    const handleAddUser = (e: React.FormEvent) => {
+    const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newUsername.trim() && newPassword.trim() && newUserShopId) {
-            onAddUser({
-                username: newUsername.trim(),
-                password: newPassword.trim(),
-                role: newUserRole,
-                shopId: newUserShopId,
-            });
-            setNewUsername('');
-            setNewPassword('');
-            setNewUserRole('cashier');
-            setNewUserShopId(shops[0]?.id);
+            try {
+                await onAddUser({
+                    username: newUsername.trim(),
+                    password: newPassword.trim(),
+                    role: newUserRole,
+                    shopId: newUserShopId,
+                });
+                setNewUsername('');
+                setNewPassword('');
+                setNewUserRole('cashier');
+                setNewUserShopId(shops[0]?.id);
+            } catch (error) {
+                alert(`Error adding user: ${error.message}`);
+            }
         }
     };
 
@@ -1801,6 +1900,7 @@ const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, o
     
     const handleSaveEdit = (id: number) => {
         if (editingShopName.trim()) {
+            // onUpdateShop is not async in this example, assuming it's a local/optimistic update
             onUpdateShop(id, editingShopName.trim());
             handleCancelEdit();
         }
@@ -1915,21 +2015,25 @@ const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, o
 // --- LOGIN PAGE COMPONENT ---
 type LoginPageProps = {
     onLogin: (user: User) => void;
-    users: User[];
 };
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const user = users.find(u => u.username === username && u.password === password);
-        if (user) {
-            const { password, ...userToLogin } = user;
-            onLogin(userToLogin);
-        } else {
-            setError('Invalid username or password');
+        setError('');
+        setIsLoggingIn(true);
+        try {
+            const { token, user } = await api.login(username, password);
+            sessionStorage.setItem('authToken', token);
+            onLogin(user);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Invalid username or password';
+            setError(errorMessage);
+            setIsLoggingIn(false);
         }
     };
 
@@ -1947,6 +2051,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
                         value={username}
                         onChange={e => setUsername(e.target.value)}
                         required
+                        disabled={isLoggingIn}
                     />
                 </div>
                 <div className="form-group">
@@ -1958,9 +2063,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         required
+                        disabled={isLoggingIn}
                     />
                 </div>
-                <button type="submit" className="action-button-primary login-button">Login</button>
+                <button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>
+                    {isLoggingIn ? 'Logging in...' : 'Login'}
+                </button>
                 <div className="login-info">
                   <p>Hint: admin/admin or manager1/password</p>
                 </div>
@@ -1973,9 +2081,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users }) => {
 // --- MAIN APP COMPONENT ---
 const App = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [appError, setAppError] = useState<string | null>(null);
+
     const [currentPage, setCurrentPage] = useState('New Sale');
-    const [products, setProducts] = useState<Product[]>(initialProducts);
-    const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
     const [notes, setNotes] = useState<Note[]>(initialNotes);
     const [salesHistory, setSalesHistory] = useState<SaleData[]>([]);
     const [pendingSaleData, setPendingSaleData] = useState<SaleData | null>(null);
@@ -1986,10 +2097,8 @@ const App = () => {
     const [invoiceMargins, setInvoiceMargins] = useState({ top: 20, right: 20, bottom: 20, left: 20 });
     const [invoiceTextOffsets, setInvoiceTextOffsets] = useState({ header: 0, footer: 0 });
     const [invoiceFontStyle, setInvoiceFontStyle] = useState<InvoiceFontStyle>('monospace');
-    const [users, setUsers] = useState<User[]>(initialUsers);
-    const [shops, setShops] = useState<Shop[]>(initialShops);
-    const nextProductId = useRef(Math.max(...initialProducts.map(p => p.id)) + 1);
-    const nextShopId = useRef(Math.max(...initialShops.map(s => s.id)) + 1);
+    const [users, setUsers] = useState<User[]>([]);
+    const [shops, setShops] = useState<Shop[]>([]);
 
     const initialSaleSession: SaleSession = useMemo(() => ({
         customerName: '',
@@ -2008,6 +2117,71 @@ const App = () => {
         {...initialSaleSession},
     ]);
     const [activeBillIndex, setActiveBillIndex] = useState(0);
+
+    // Check for existing session on initial load
+    useEffect(() => {
+        const checkSession = () => {
+            const token = getAuthToken();
+            if (token) {
+                try {
+                    const user = JSON.parse(sessionStorage.getItem('currentUser') || 'null');
+                    if (user) {
+                        setCurrentUser(user);
+                    } else {
+                        setIsLoading(false); // No user, stop loading, show login
+                    }
+                } catch {
+                    setIsLoading(false);
+                }
+            } else {
+                setIsLoading(false);
+            }
+        };
+        checkSession();
+    }, []);
+
+     // Fetch data when user is authenticated
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!currentUser) return;
+            setIsLoading(true);
+            setAppError(null);
+            try {
+                const shopId = currentUser.role === 'admin' ? 1 : currentUser.shopId; // Admin needs a shopId. Assume 1.
+                if (!shopId && currentUser.role !== 'admin') throw new Error("User has no assigned shop.");
+
+                const requests = [
+                    api.getProducts(shopId),
+                    api.getCustomers(),
+                    api.getSales(shopId),
+                ];
+
+                if (currentUser.role === 'admin') {
+                    requests.push(api.getUsers());
+                    requests.push(api.getShops());
+                }
+
+                const [productsData, customersData, salesData, usersData, shopsData] = await Promise.all(requests);
+
+                setProducts(productsData || []);
+                setCustomers(customersData || []);
+                setSalesHistory((salesData || []).map(s => ({ ...s, date: new Date(s.date) })));
+                if (currentUser.role === 'admin') {
+                    setUsers(usersData || []);
+                    setShops(shopsData || []);
+                }
+
+            } catch (err) {
+                 const errorMessage = err instanceof Error ? err.message : "Failed to load application data.";
+                setAppError(errorMessage);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [currentUser]);
+
 
     const updateCurrentSaleSession = (updates: Partial<SaleSession>) => {
         setSaleSessions(prev => {
@@ -2030,61 +2204,63 @@ const App = () => {
     }, [theme]);
 
     const handleLogin = (user: User) => {
+        sessionStorage.setItem('currentUser', JSON.stringify(user));
         setCurrentUser(user);
-        setCurrentPage('New Sale'); // Default page after login
+        setCurrentPage('New Sale');
     };
 
     const handleLogout = () => {
+        sessionStorage.removeItem('authToken');
+        sessionStorage.removeItem('currentUser');
         setCurrentUser(null);
+        setProducts([]);
+        setCustomers([]);
+        setSalesHistory([]);
+        setUsers([]);
+        setShops([]);
     };
 
-    const handleAddProduct = (newProductData: Omit<Product, 'id'>): Product => {
-        const newProduct = { ...newProductData, id: nextProductId.current++ };
+    const handleAddProduct = async (newProductData: Omit<Product, 'id'>): Promise<Product> => {
+        const newProduct = await api.addProduct(newProductData);
         setProducts(prev => [...prev, newProduct]);
         return newProduct;
     };
-
-    const handleAddBulkProducts = async (newProducts: Omit<Product, 'id' | 'stock'>[]): Promise<{added: number, skipped: number}> => {
-        let added = 0;
-        let skipped = 0;
-        const existingNames = new Set(products.map(p => p.name.toLowerCase()));
-        
-        const productsToAdd: Product[] = [];
-
-        newProducts.forEach(p => {
-            if (!existingNames.has(p.name.toLowerCase())) {
-                productsToAdd.push({ ...p, id: nextProductId.current++, stock: 0 });
-                added++;
-            } else {
-                skipped++;
-            }
-        });
-
-        setProducts(prev => [...prev, ...productsToAdd]);
-        
-        return { added, skipped };
+    
+    const handleAddCustomer = async (newCustomerData: Omit<Customer, 'balance'>) => {
+        if (customers.some(c => c.mobile === newCustomerData.mobile)) {
+            throw new Error("A customer with this mobile number already exists.");
+        }
+        const newCustomer = await api.addCustomer(newCustomerData);
+        setCustomers(prev => [...prev, newCustomer].sort((a, b) => a.name.localeCompare(b.name)));
     };
     
-    const handleUpdateProduct = (updatedProduct: Product) => {
-        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    const handleUpdateProduct = async (updatedProduct: Product) => {
+        try {
+            const returnedProduct = await api.updateProduct(updatedProduct.id, updatedProduct);
+            setProducts(prev => prev.map(p => p.id === returnedProduct.id ? returnedProduct : p));
+        } catch (error) {
+            console.error("Failed to update product:", error);
+            // Optionally show an error to the user
+        }
     };
     
-    const handleAddShop = (name: string) => {
-        const newShop: Shop = { id: nextShopId.current++, name };
+    const handleAddShop = async (name: string) => {
+        const newShop = await api.addShop(name);
         setShops(prev => [...prev, newShop]);
     };
     
     const handleUpdateShop = (id: number, name: string) => {
+        // API endpoint for this is not in the spec, doing an optimistic local update for now.
         setShops(prev => prev.map(shop => shop.id === id ? { ...shop, name } : shop));
     };
 
 
-    const handleAddUser = (user: Omit<User, 'id'>) => {
+    const handleAddUser = async (user: Omit<User, 'id'>) => {
         if (users.some(u => u.username === user.username)) {
-            alert("Username already exists.");
-            return;
+            throw new Error("Username already exists.");
         }
-        setUsers(prev => [...prev, user]);
+        const newUser = await api.register(user);
+        setUsers(prev => [...prev, newUser]);
     };
 
 
@@ -2102,40 +2278,23 @@ const App = () => {
 
     const handleConfirmFinalizeSale = async () => {
         if (!pendingSaleData || isSaleFinalized) return;
+        
+        await api.createSale(pendingSaleData);
+        
+        // Optimistically update history and reset state
+        setSalesHistory(prev => [pendingSaleData, ...prev]);
+        setIsSaleFinalized(true);
+        resetCurrentSaleSession();
 
-        return new Promise<void>(resolve => {
-            const { customerMobile, customerName, newBalance, saleItems } = pendingSaleData;
-            
-            const existingCustomer = customers.find(c => c.mobile === customerMobile);
+        // Refetch critical data in the background
+        const shopId = currentUser?.role === 'admin' ? 1 : currentUser?.shopId;
+        if (shopId) {
+            api.getProducts(shopId).then(setProducts);
+            api.getCustomers().then(setCustomers);
+        }
 
-            if (existingCustomer) {
-                setCustomers(prev => prev.map(c => 
-                    c.mobile === customerMobile ? { ...c, balance: newBalance, name: customerName || c.name } : c
-                ));
-            } else if (customerMobile) {
-                const newCustomer: Customer = { mobile: customerMobile, name: customerName, balance: newBalance };
-                setCustomers(prev => [...prev, newCustomer]);
-            }
-
-            const productsCopy = [...products];
-            saleItems.forEach(item => {
-                const productIndex = productsCopy.findIndex(p => p.id === item.productId);
-                if (productIndex !== -1) {
-                    const stockChange = item.isReturn ? item.quantity : -item.quantity;
-                    productsCopy[productIndex].stock += stockChange;
-                }
-            });
-            setProducts(productsCopy);
-            
-            setSalesHistory(prev => [pendingSaleData, ...prev]);
-            setIsSaleFinalized(true);
-            resetCurrentSaleSession();
-            
-            setTimeout(() => {
-                handleNavigate('New Sale');
-                resolve();
-            }, 800);
-        });
+        await new Promise(resolve => setTimeout(resolve, 800));
+        handleNavigate('New Sale');
     };
     
     const handleNavigate = (page: string) => {
@@ -2154,8 +2313,16 @@ const App = () => {
         setCurrentPage('Invoice');
     };
     
+    if (isLoading) {
+        return <div className={`theme-${theme} loading-container`}><h2>Loading BillEase POS...</h2></div>;
+    }
+    
     if (!currentUser) {
-        return <div className={`theme-${theme}`} style={{height: '100%'}}><LoginPage onLogin={handleLogin} users={users} /></div>;
+        return <div className={`theme-${theme}`} style={{height: '100%'}}><LoginPage onLogin={handleLogin} /></div>;
+    }
+    
+    if (appError) {
+        return <div className={`theme-${theme} error-container`}><h2>Error</h2><p>{appError}</p><button onClick={handleLogout}>Logout</button></div>;
     }
   
     const renderPage = () => {
@@ -2174,7 +2341,7 @@ const App = () => {
                     onBillChange={setActiveBillIndex}
                 />;
             case 'Product Inventory':
-                return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} onAddBulkProducts={handleAddBulkProducts} />;
+                return <ProductInventoryPage products={products} onAddProduct={handleAddProduct} />;
             case 'Invoice':
                  return <InvoicePage 
                     saleData={pendingSaleData} 
@@ -2191,7 +2358,7 @@ const App = () => {
                     onFontStyleChange={setInvoiceFontStyle}
                  />;
             case 'Customer Management':
-                return <CustomerManagementPage customers={customers} />;
+                return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due':
                 return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports':
