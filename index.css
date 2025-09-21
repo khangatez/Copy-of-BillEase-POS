@@ -1,4 +1,5 @@
 
+
 :root {
   --font-family: 'Inter', sans-serif;
   --border-radius: 6px;
@@ -19,6 +20,7 @@
   --border-color: #444444;
   --danger-color: #dc3545;
   --success-color: #28a745;
+  --warning-color: #ffc107;
   --input-disabled-bg: #4f4f4f;
 }
 
@@ -33,6 +35,7 @@
   --border-color: #dee2e6;
   --danger-color: #dc3545;
   --success-color: #28a745;
+  --warning-color: #ffc107;
   --input-disabled-bg: #e9ecef;
 }
 
@@ -47,6 +50,7 @@
   --border-color: #303C55;
   --danger-color: #ff8a8a;
   --success-color: #64ffda;
+  --warning-color: #f7d794;
   --input-disabled-bg: #112240;
 }
 
@@ -61,6 +65,7 @@
   --border-color: #4b5f4f;
   --danger-color: #ef9a9a;
   --success-color: #a5d6a7;
+  --warning-color: #ffe082;
   --input-disabled-bg: #354639;
 }
 
@@ -75,6 +80,7 @@
   --border-color: #6c4e6e;
   --danger-color: #ff8787;
   --success-color: #ffab70;
+  --warning-color: #ffcc80;
   --input-disabled-bg: #4a324d;
 }
 
@@ -89,6 +95,7 @@
   --border-color: #49483e;
   --danger-color: #f92672;
   --success-color: #a6e22e;
+  --warning-color: #e6db74;
   --input-disabled-bg: #33342b;
 }
 
@@ -103,6 +110,7 @@
   --border-color: #4c566a;
   --danger-color: #bf616a;
   --success-color: #a3be8c;
+  --warning-color: #ebcb8b;
   --input-disabled-bg: #353c4a;
 }
 
@@ -117,6 +125,7 @@
   --border-color: #dee2e6;
   --danger-color: #dc3545;
   --success-color: #198754;
+  --warning-color: #ffc107;
   --input-disabled-bg: #e9ecef;
 }
 
@@ -131,6 +140,7 @@
   --border-color: #5f6770;
   --danger-color: #e57373;
   --success-color: #81c784;
+  --warning-color: #ffd54f;
   --input-disabled-bg: #31363f;
 }
 
@@ -145,6 +155,7 @@
   --border-color: #8c90ad;
   --danger-color: #ef9a9a;
   --success-color: #a5d6a7;
+  --warning-color: #ffe082;
   --input-disabled-bg: #40445e;
 }
 
@@ -323,6 +334,10 @@ body {
   width: 100%;
 }
 
+.page-container-full-width {
+    max-width: none;
+}
+
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -439,6 +454,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--padding-md);
+  overflow: hidden;
 }
 
 .customer-details {
@@ -689,12 +705,18 @@ body {
     justify-content: space-between;
 }
 
+.totals-summary-wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-md);
+}
+
 .totals-summary {
-  padding-top: var(--padding-md);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex-grow: 1;
 }
 
 .toggle-group {
@@ -743,19 +765,31 @@ body {
 
 .totals-summary .sale-total-row {
     font-weight: 600;
+    font-size: 1.1rem;
     border-top: 1px solid var(--border-color);
-    padding-top: var(--padding-sm);
-    margin-top: var(--padding-sm);
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--padding-sm) 0;
+    margin: var(--padding-sm) 0;
 }
 
+.balance-summary-section {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--padding-md);
+    margin-bottom: var(--padding-md);
+}
+
+.payment-section {
+    padding-top: var(--padding-sm);
+}
+
+
 .totals-summary .total-due-row {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 700;
     padding-top: var(--padding-sm);
-    padding-bottom: var(--padding-sm);
-    border-top: 1px solid var(--border-color);
-    margin-top: var(--padding-md);
+    color: var(--accent-primary);
 }
+
 
 .totals-summary .return-total-row span:last-child {
   color: var(--danger-color);
@@ -763,7 +797,6 @@ body {
 }
 
 .totals-summary .amount-paid-row {
-    margin-top: var(--padding-md);
     gap: var(--padding-sm);
 }
 
@@ -802,25 +835,11 @@ body {
     margin-top: var(--padding-sm);
 }
 
-.totals-summary .total-balance-due-row {
-    font-size: 1.2rem;
-    font-weight: 600;
+.totals-summary .new-balance-due-row {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--danger-color);
     margin-top: var(--padding-sm);
-    gap: var(--padding-sm);
-}
-
-.totals-summary .total-balance-due-row label {
-    font-weight: inherit;
-    font-size: inherit;
-}
-
-.totals-summary .total-balance-due-row .input-field {
-    text-align: right;
-    font-weight: 600;
-    font-size: 1.1rem;
-    max-width: 150px;
-    padding: 8px;
-    background-color: var(--background-primary);
 }
 
 
@@ -830,6 +849,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--padding-sm);
+    flex-shrink: 0;
 }
 .finalize-section .form-group {
     flex-direction: row;
@@ -864,6 +884,29 @@ body {
 
 
 /* --- Product Inventory / Customer Management Page --- */
+.inventory-controls {
+    background-color: var(--background-secondary);
+    padding: var(--padding-md);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--padding-md);
+}
+.inventory-controls .input-with-icon {
+    position: relative;
+    max-width: 400px;
+}
+.inventory-controls .input-field {
+    padding-left: 36px;
+}
+.inventory-controls .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    fill: var(--text-secondary);
+}
+
 .inventory-layout {
     display: grid;
     grid-template-columns: 1fr;
@@ -1549,29 +1592,26 @@ body {
     gap: var(--padding-md);
     overflow-y: auto; /* Allow body to scroll */
 }
-.file-input-group {
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--padding-lg);
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s;
-}
-.file-input-group:hover {
+.import-instructions {
     background-color: var(--background-tertiary);
-    border-color: var(--accent-primary);
+    padding: var(--padding-md);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
 }
-.file-input-group input[type="file"] {
-    display: none;
+.import-instructions p {
+    margin-bottom: var(--padding-sm);
 }
-.file-input-group p {
-    color: var(--text-secondary);
+.import-instructions code {
+    background-color: var(--background-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
 }
-.file-input-group .file-name {
-    color: var(--success-color);
-    font-weight: 500;
-    margin-top: var(--padding-sm);
+.modal-body textarea.input-field {
+    font-family: monospace;
+    font-size: 0.9rem;
 }
+
 
 .modal-footer {
     display: flex;
@@ -1752,6 +1792,123 @@ body {
     margin-bottom: var(--padding-sm);
 }
 
+/* --- ORDER MANAGEMENT --- */
+.order-management-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--padding-md);
+    align-items: flex-start;
+    /* Let height be determined by content or parent, remove fixed height */
+}
+
+.order-column {
+    background-color: var(--background-secondary);
+    border-radius: var(--border-radius);
+    padding: var(--padding-md);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent content from spilling */
+}
+
+.order-column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--padding-md);
+    padding-bottom: var(--padding-md);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.order-column-header h3 {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.order-column .inventory-list-container {
+    padding: 0;
+    flex-grow: 1; /* Allow table to fill space */
+    max-height: calc(100vh - 280px); /* Adjust max-height */
+}
+
+
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.status-badge.status-pending {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+}
+.status-badge.status-fulfilled {
+    background-color: rgba(40, 167, 69, 0.2);
+    color: var(--success-color);
+}
+.status-badge.status-cancelled {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: var(--danger-color);
+}
+.action-buttons-group {
+    display: flex;
+    gap: var(--padding-sm);
+}
+
+.table-action-buttons {
+    display: flex;
+    gap: var(--padding-sm);
+    justify-content: flex-end;
+}
+
+.table-action-buttons .action-button-secondary {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+}
+
+.action-buttons-group .action-button-secondary.success {
+    border-color: var(--success-color);
+    color: var(--success-color);
+}
+.action-buttons-group .action-button-secondary.success:hover {
+    background-color: var(--success-color);
+    color: var(--background-secondary);
+}
+.action-buttons-group .action-button-secondary.danger {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+.action-buttons-group .action-button-secondary.danger:hover {
+    background-color: var(--danger-color);
+    color: var(--background-secondary);
+}
+
+.order-details-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-md);
+}
+
+.order-details-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--padding-sm);
+    background-color: var(--background-tertiary);
+    padding: var(--padding-md);
+    border-radius: var(--border-radius);
+}
+
+.order-details-summary div {
+    font-size: 1rem;
+}
+
+.modal-footer .action-buttons-group {
+    margin-left: auto;
+}
+
+
 /* --- Loading and Error States --- */
 .loading-container, .error-container {
     display: flex;
@@ -1799,229 +1956,132 @@ body {
   border-width: 0;
 }
 
-/* Print Styles */
-@media print {
-  body, #root, .app-main {
-    background-color: #fff !important;
-    padding: 0;
-    margin: 0;
-  }
-  .app-header, .invoice-actions, .login-container {
-    display: none !important;
-  }
-  .invoice-paper {
-    box-shadow: none;
-    width: 100% !important;
-    max-width: 100% !important;
-    border-radius: 0;
-    margin: 0;
-    padding: 0;
-  }
-  .printable-area {
-    border: none;
-  }
+/* --- Mobile / Responsive --- */
+@media (max-width: 1024px) {
+    .new-sale-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .order-management-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .order-column {
+        height: auto;
+        max-height: 60vh; /* Give columns a max height on smaller screens */
+    }
 }
 
-/* --- RESPONSIVE DESIGN --- */
-
-/* Tablet and below */
-@media (max-width: 992px), .view-mode-mobile {
-  .new-sale-layout, .inventory-layout, .shop-management-layout, .admin-dashboard-layout, .expenses-page, .customer-management-layout {
+@media (max-width: 768px) {
+  body { font-size: 16px; }
+  .app-header { flex-direction: column; gap: var(--padding-sm); }
+  .header-user-info { flex-wrap: wrap; justify-content: center; width: 100%; }
+  .header-welcome-message { display: none; }
+  .app-main { padding: var(--padding-sm); }
+  
+  .inventory-table thead { display: none; }
+  .inventory-table, .inventory-table tbody, .inventory-table tr, .inventory-table td { display: block; width: 100%; }
+  .inventory-table tr {
+      background-color: var(--background-secondary);
+      border-radius: var(--border-radius);
+      margin-bottom: var(--padding-md);
+      padding: var(--padding-sm);
+      border: 1px solid var(--border-color);
+  }
+  .inventory-table td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: right;
+  }
+   .inventory-table td:last-child {
+      border-bottom: none;
+  }
+  .inventory-table td::before {
+      content: attr(data-label);
+      font-weight: bold;
+      text-align: left;
+      margin-right: var(--padding-md);
+      color: var(--text-secondary);
+  }
+  .sales-history-table .table-action-buttons {
+      justify-content: flex-end;
+  }
+  
+  .shop-management-layout, .expenses-page, .admin-dashboard-layout {
+      grid-template-columns: 1fr;
+  }
+  .customer-management-layout {
     grid-template-columns: 1fr;
     height: auto;
   }
-  .expenses-page {
-    grid-template-areas: "title" "form" "table";
-  }
-  .invoice-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .invoice-controls {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    margin-bottom: var(--padding-md);
-  }
   .customer-list-panel {
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
-    height: 350px;
+      border-right: none;
+      border-bottom: 1px solid var(--border-color);
+      max-height: 40vh;
   }
-}
+  
+  .invoice-actions, .invoice-controls {
+      flex-direction: column;
+      align-items: stretch;
+  }
+  .invoice-main-actions {
+      flex-direction: column;
+      align-items: stretch;
+  }
+  .whatsapp-group {
+      flex-direction: column;
+      align-items: stretch;
+  }
+   .whatsapp-group .input-field, .whatsapp-group .action-button-primary {
+       border-radius: var(--border-radius);
+   }
 
-/* Mobile and below */
-@media (max-width: 768px), .view-mode-mobile {
-    .header-welcome-message, .sync-text {
-        display: none;
-    }
-    .header-user-info {
-        gap: var(--padding-sm);
-    }
-    .customer-details {
-        grid-template-columns: 1fr;
-    }
+  /* Force Mobile View Mode Styles */
+  .view-mode-mobile .new-sale-layout {
+      grid-template-columns: 1fr;
+      height: auto;
+  }
+   .view-mode-mobile .sales-grid thead { display: none; }
+   .view-mode-mobile .sales-grid, .view-mode-mobile .sales-grid tbody, .view-mode-mobile .sales-grid tr, .view-mode-mobile .sales-grid td { display: block; width: 100%; }
+   .view-mode-mobile .sales-grid tr {
+       background-color: var(--background-tertiary);
+       border-radius: var(--border-radius);
+       margin-bottom: var(--padding-md);
+       padding: var(--padding-sm);
+       border: 1px solid var(--border-color);
+   }
+   .view-mode-mobile .sales-grid tr.is-return {
+       background-color: rgba(220, 53, 69, 0.1);
+   }
+   .view-mode-mobile .sales-grid td {
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       padding: 10px;
+       border-bottom: 1px solid var(--border-color);
+       text-align: right;
+   }
+   .view-mode-mobile .sales-grid td:last-child { border: none; }
+   .view-mode-mobile .sales-grid td::before {
+       content: attr(data-label);
+       font-weight: bold;
+       text-align: left;
+       margin-right: auto;
+       color: var(--text-secondary);
+   }
+    .view-mode-mobile .sales-grid td[data-label="Product"],
+    .view-mode-mobile .sales-grid td[data-label="Quantity"],
+    .view-mode-mobile .sales-grid td[data-label="Price"] {
+       padding-right: 0;
+   }
+   .view-mode-mobile .sales-grid td[data-label="Product"] .input-field-seamless,
+   .view-mode-mobile .sales-grid td[data-label="Quantity"] .input-field,
+   .view-mode-mobile .sales-grid td[data-label="Price"] .input-field {
+       width: 120px;
+       max-width: 40%;
+   }
 
-    /* Transform all data tables to card view */
-    .inventory-table thead {
-        border: none;
-        clip: rect(0 0 0 0);
-        height: 1px;
-        margin: -1px;
-        overflow: hidden;
-        padding: 0;
-        position: absolute;
-        width: 1px;
-    }
-
-    .inventory-table tr {
-        display: block;
-        border: 1px solid var(--border-color);
-        border-radius: var(--border-radius);
-        margin-bottom: var(--padding-md);
-        background-color: var(--background-tertiary);
-    }
-
-    .inventory-table td {
-        display: block;
-        text-align: right;
-        font-size: 0.9rem;
-        border-bottom: 1px solid var(--border-color);
-        padding: var(--padding-sm);
-        padding-left: 50%;
-        position: relative;
-    }
-
-    .inventory-table td:last-child {
-        border-bottom: none;
-    }
-    .inventory-table td::before {
-        content: attr(data-label);
-        position: absolute;
-        left: var(--padding-sm);
-        width: calc(50% - var(--padding-md));
-        text-align: left;
-        font-weight: bold;
-        color: var(--text-secondary);
-        white-space: nowrap;
-    }
-    .inventory-table td .action-button-secondary {
-        width: 100%;
-    }
-
-    /* Sales grid on New Sale page */
-    .sales-grid thead {
-        display: none;
-    }
-    .sales-grid tr {
-        display: block;
-        border-bottom: 2px solid var(--border-color);
-        padding-bottom: var(--padding-sm);
-        margin-bottom: var(--padding-sm);
-    }
-     .sales-grid tr:last-child {
-        border-bottom: none;
-    }
-
-    .sales-grid td {
-        display: grid;
-        grid-template-columns: 100px 1fr;
-        align-items: center;
-        text-align: right;
-        gap: var(--padding-sm);
-        padding: 6px 0;
-        border-bottom: none;
-    }
-    .sales-grid td::before {
-        content: attr(data-label);
-        text-align: left;
-        font-weight: bold;
-        color: var(--text-secondary);
-    }
-    .sales-grid td[data-label="S.No"]::before, 
-    .sales-grid td[data-label="Total"]::before,
-    .sales-grid td[data-label="Status"]::before {
-      display: none; /* Hide labels for non-input fields */
-    }
-
-    .sales-grid td[data-label="S.No"], .sales-grid td[data-label="Total"] {
-        display: inline;
-        position: absolute;
-        font-weight: bold;
-    }
-    .sales-grid td[data-label="S.No"] {
-        top: 8px; left: 0px;
-        background: var(--accent-primary);
-        color: var(--background-secondary);
-        padding: 4px 8px;
-        border-radius: var(--border-radius);
-    }
-    .sales-grid td[data-label="Total"] {
-        top: 8px; right: 0px;
-    }
-
-    .sales-grid tr {
-        position: relative;
-        padding-top: 30px;
-    }
-
-    /* --- 16:9 Mobile Optimization --- */
-
-    /* Full-screen modals for better focus and easier interaction on touch devices */
-    .modal-overlay {
-        padding: 0;
-        align-items: stretch; /* Allow modal to fill height */
-    }
-
-    .modal-content {
-        width: 100%;
-        height: 100%;
-        max-width: 100vw;
-        max-height: 100vh;
-        border-radius: 0;
-        box-shadow: none;
-        justify-content: space-between;
-    }
-
-    .modal-footer {
-        flex-direction: column-reverse; /* Stack buttons, primary on top */
-        gap: var(--padding-md);
-    }
-
-    /* Larger touch targets for modal buttons */
-    .modal-footer .action-button-primary,
-    .modal-footer .action-button-secondary {
-        width: 100%;
-        padding: var(--padding-md);
-        font-size: 1.1rem;
-    }
-    
-    /* General spacing adjustments */
-    .app-main {
-        padding: var(--padding-sm);
-    }
-
-    /* Improved card view readability */
-    .inventory-table td {
-        padding-top: 12px;
-        padding-bottom: 12px;
-    }
-
-    /* Improve form layouts on mobile */
-    .add-expense-form,
-    .shop-management-layout .management-card form {
-        gap: var(--padding-lg);
-    }
-}
-
-
-/* Hide arrows from number inputs */
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type=number] {
-  -moz-appearance: textfield;
 }

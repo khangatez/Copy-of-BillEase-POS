@@ -16,6 +16,8 @@ interface Product {
   b2cPrice: number;
   stock: number;
   barcode?: string;
+  category?: string;
+  subcategory?: string;
 }
 
 interface Customer {
@@ -92,9 +94,39 @@ interface SaleSession {
     taxPercent: number;
     saleItems: SaleItem[];
     amountPaid: string;
-    totalBalanceDueStr: string;
     returnReason?: string;
 }
+
+interface OrderItem {
+  productId: number;
+  name: string;
+  quantity: number;
+  price: number; // Purchase price for PO, sale price for SO
+}
+
+type OrderStatus = 'Pending' | 'Fulfilled' | 'Cancelled';
+
+interface PurchaseOrder {
+    id: number;
+    shopId: number;
+    supplierName: string;
+    orderDate: Date;
+    items: OrderItem[];
+    totalAmount: number;
+    status: OrderStatus;
+}
+
+interface SalesOrder {
+    id: number;
+    shopId: number;
+    customerMobile: string;
+    customerName: string;
+    orderDate: Date;
+    items: OrderItem[];
+    totalAmount: number;
+    status: OrderStatus;
+}
+
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
 type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
@@ -141,6 +173,8 @@ class IndexedDBManager {
                 if (!db.objectStoreNames.contains('shops')) db.createObjectStore('shops', { keyPath: 'id' });
                 if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'username' });
                 if (!db.objectStoreNames.contains('expenses')) db.createObjectStore('expenses', { keyPath: 'id' });
+                if (!db.objectStoreNames.contains('purchaseOrders')) db.createObjectStore('purchaseOrders', { keyPath: 'id' });
+                if (!db.objectStoreNames.contains('salesOrders')) db.createObjectStore('salesOrders', { keyPath: 'id' });
                 if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { autoIncrement: true });
             };
 
@@ -317,8 +351,8 @@ type HeaderProps = {
 const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, appName, shops, selectedShopId, onShopChange, syncStatus, pendingSyncCount }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const allMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Shop Management'];
-  const managerMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Reports', 'Expenses', 'Notes', 'Balance Due'];
+  const allMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Shop Management'];
+  const managerMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Balance Due'];
   const cashierMenuItems = ['New Sale'];
   const getMenuItems = () => {
     switch(currentUser.role) {
@@ -379,15 +413,22 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
     const [newProductB2C, setNewProductB2C] = useState(0);
     const [newProductStock, setNewProductStock] = useState(0);
     const [newProductBarcode, setNewProductBarcode] = useState('');
+    const [newProductCategory, setNewProductCategory] = useState('');
+    const [newProductSubcategory, setNewProductSubcategory] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+
     const nameTamilRef = useRef<HTMLInputElement>(null);
     const b2bRef = useRef<HTMLInputElement>(null);
     const b2cRef = useRef<HTMLInputElement>(null);
     const stockRef = useRef<HTMLInputElement>(null);
+    const categoryRef = useRef<HTMLInputElement>(null);
+    const subcategoryRef = useRef<HTMLInputElement>(null);
     const barcodeRef = useRef<HTMLInputElement>(null);
     const submitRef = useRef<HTMLButtonElement>(null);
     const formId = "add-product-form";
+
     if (!isOpen) return null;
+
     const handleAddProduct = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newProductName.trim()) {
@@ -396,8 +437,8 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
         }
         setIsAdding(true);
         try {
-            await onAddProduct({ name: newProductName, nameTamil: newProductNameTamil, b2bPrice: newProductB2B, b2cPrice: newProductB2C, stock: newProductStock, barcode: newProductBarcode });
-            setNewProductName(''); setNewProductNameTamil(''); setNewProductB2B(0); setNewProductB2C(0); setNewProductStock(0); setNewProductBarcode('');
+            await onAddProduct({ name: newProductName, nameTamil: newProductNameTamil, b2bPrice: newProductB2B, b2cPrice: newProductB2C, stock: newProductStock, barcode: newProductBarcode, category: newProductCategory, subcategory: newProductSubcategory });
+            setNewProductName(''); setNewProductNameTamil(''); setNewProductB2B(0); setNewProductB2C(0); setNewProductStock(0); setNewProductBarcode(''); setNewProductCategory(''); setNewProductSubcategory('');
             onClose();
         } catch (error) {
             alert(`Error adding product: ${error instanceof Error ? error.message : String(error)}`);
@@ -414,11 +455,13 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                 <div className="modal-header"><h3>Add New Product</h3><button onClick={onClose} className="close-button">&times;</button></div>
                 <div className="modal-body">
                     <form id={formId} onSubmit={handleAddProduct} className="add-product-form">
-                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value)} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value)} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus/></div>
                         <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil)</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2b">B2B Price</label><input ref={b2bRef} id="modal-new-product-b2b" type="number" step="0.01" className="input-field" value={newProductB2B} onChange={e => setNewProductB2B(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, b2cRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2c">B2C Price</label><input ref={b2cRef} id="modal-new-product-b2c" type="number" step="0.01" className="input-field" value={newProductB2C} onChange={e => setNewProductB2C(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, stockRef)} /></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-stock">Initial Stock</label><input ref={stockRef} id="modal-new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, barcodeRef)} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-stock">Initial Stock</label><input ref={stockRef} id="modal-new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, categoryRef)} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-category">Category (Optional)</label><input ref={categoryRef} id="modal-new-product-category" type="text" className="input-field" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} onKeyDown={e => handleKeyDown(e, subcategoryRef)} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-subcategory">Subcategory (Optional)</label><input ref={subcategoryRef} id="modal-new-product-subcategory" type="text" className="input-field" value={newProductSubcategory} onChange={e => setNewProductSubcategory(e.target.value)} onKeyDown={e => handleKeyDown(e, barcodeRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-barcode">Barcode (Optional)</label><input ref={barcodeRef} id="modal-new-product-barcode" type="text" className="input-field" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} /></div>
                     </form>
                 </div>
@@ -430,6 +473,102 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
         </div>
     );
 };
+
+
+// --- IMPORT PRODUCTS MODAL ---
+type ImportProductsModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onBulkAdd: (products: Omit<Product, 'id' | 'shopId'>[]) => Promise<void>;
+};
+const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClose, onBulkAdd }) => {
+    const [csvData, setCsvData] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setCsvData('');
+            setIsImporting(false);
+            setError('');
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleImport = async () => {
+        if (!csvData.trim()) {
+            setError('Please paste data from your spreadsheet.');
+            return;
+        }
+        setIsImporting(true);
+        setError('');
+        try {
+            const rows = csvData.trim().split('\n').slice(1); // Skip header row
+            const newProducts: Omit<Product, 'id' | 'shopId'>[] = rows.map((row, index) => {
+                const columns = row.split(',').map(c => c.trim());
+                if (columns.length < 5) {
+                    throw new Error(`Row ${index + 2}: Not enough columns. Expected at least 5.`);
+                }
+                const product: Omit<Product, 'id' | 'shopId'> = {
+                    name: columns[0],
+                    nameTamil: columns[1] || '',
+                    b2bPrice: parseFloat(columns[2]) || 0,
+                    b2cPrice: parseFloat(columns[3]) || 0,
+                    stock: parseInt(columns[4], 10) || 0,
+                    barcode: columns[5] || undefined,
+                    category: columns[6] || undefined,
+                    subcategory: columns[7] || undefined,
+                };
+                if (!product.name) {
+                    throw new Error(`Row ${index + 2}: Product name is required.`);
+                }
+                return product;
+            });
+
+            await onBulkAdd(newProducts);
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred during import.');
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3>Import Bulk Products</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="modal-body">
+                    <div className="import-instructions">
+                        <p>Copy columns from your Excel or Google Sheet and paste them into the text box below.</p>
+                        <p>Ensure the first row is a header and the columns are in the following order:</p>
+                        <code>Name, Tamil Name, B2B Price, B2C Price, Stock, Barcode (Optional), Category (Optional), Subcategory (Optional)</code>
+                    </div>
+                    {error && <p className="login-error">{error}</p>}
+                    <textarea
+                        className="input-field"
+                        rows={10}
+                        value={csvData}
+                        onChange={e => setCsvData(e.target.value)}
+                        placeholder="Paste your CSV data here..."
+                        disabled={isImporting}
+                    />
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isImporting}>Cancel</button>
+                    <button className="action-button-primary" onClick={handleImport} disabled={isImporting}>
+                        {isImporting ? 'Importing...' : 'Import Products'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- NEW SALE PAGE COMPONENT ---
 type NewSalePageProps = {
@@ -449,7 +588,7 @@ type NewSalePageProps = {
 };
 
 const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, viewMode, onViewModeChange }) => {
-    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, amountPaid, totalBalanceDueStr, returnReason } = sessionData;
+    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, amountPaid, returnReason } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [showAddNewSuggestion, setShowAddNewSuggestion] = useState(false);
@@ -585,13 +724,12 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         onSessionUpdate({
             customerMobile: mobile,
             amountPaid: '',
-            totalBalanceDueStr: ''
         });
     };
 
     const {
         grossTotal, returnTotal, netSaleTotal, taxAmount, currentSaleGrandTotal,
-        previousBalance, totalAmountDue
+        previousBalance, totalAmountDue, newBalanceDue, changeDue
     } = useMemo(() => {
         const grossTotal = saleItems.filter(item => !item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
         const returnTotal = saleItems.filter(item => item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
@@ -600,67 +738,32 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         const currentSaleGrandTotal = netSaleTotal + taxAmount;
         const previousBalance = activeCustomer?.balance ?? 0;
         const totalAmountDue = previousBalance + currentSaleGrandTotal;
+        
+        const paid = parseFloat(amountPaid) || 0;
+        const balance = totalAmountDue - paid;
+
+        const newBalanceDue = balance > 0 ? balance : 0;
+        const changeDue = balance < 0 ? -balance : 0;
 
         return {
             grossTotal, returnTotal, netSaleTotal, taxAmount, currentSaleGrandTotal,
-            previousBalance, totalAmountDue
+            previousBalance, totalAmountDue, newBalanceDue, changeDue
         };
-    }, [saleItems, taxPercent, activeCustomer]);
-
-    const changeDue = useMemo(() => {
-        const paid = parseFloat(amountPaid);
-        if (!isNaN(paid) && paid > totalAmountDue) {
-            return paid - totalAmountDue;
-        }
-        return 0;
-    }, [amountPaid, totalAmountDue]);
+    }, [saleItems, taxPercent, activeCustomer, amountPaid]);
 
     const handleAmountPaidChange = (value: string) => {
         onSessionUpdate({ amountPaid: value });
-        const paid = parseFloat(value);
-        if (!isNaN(paid)) {
-            const calculatedBalance = totalAmountDue - paid;
-            onSessionUpdate({ totalBalanceDueStr: calculatedBalance > 0 ? calculatedBalance.toFixed(2) : '' });
-        } else {
-            onSessionUpdate({ totalBalanceDueStr: '' });
-        }
     };
 
-    const handleTotalBalanceDueChange = (value: string) => {
-        onSessionUpdate({ totalBalanceDueStr: value });
-        const balance = parseFloat(value);
-        if (!isNaN(balance)) {
-            const calculatedPaid = totalAmountDue - balance;
-            onSessionUpdate({ amountPaid: calculatedPaid >= 0 ? calculatedPaid.toFixed(2) : '' });
-        } else {
-            onSessionUpdate({ amountPaid: '' });
-        }
-    };
-
-    const handlePayFullWithYes = () => {
-        onSessionUpdate({
-            amountPaid: totalAmountDue.toFixed(2),
-            totalBalanceDueStr: ''
-        });
+    const handlePayFull = () => {
+        onSessionUpdate({ amountPaid: totalAmountDue.toFixed(2) });
     };
 
     const handlePreviewClick = () => {
         if (saleItems.length === 0) { alert("Cannot preview an empty sale."); return; }
         if (!currentShopId) { alert("Cannot create a sale without a selected shop."); return; }
         
-        const wasBalanceExplicitlySetByUser = totalBalanceDueStr.trim() !== '';
-        
-        let finalAmountPaid: number;
-        let finalTotalBalanceDue: number;
-    
-        if (wasBalanceExplicitlySetByUser) {
-            finalTotalBalanceDue = parseFloat(totalBalanceDueStr) || 0;
-            finalAmountPaid = totalAmountDue - finalTotalBalanceDue;
-        } else {
-            const parsedAmountPaid = parseFloat(amountPaid);
-            finalAmountPaid = isNaN(parsedAmountPaid) ? totalAmountDue : parsedAmountPaid;
-            finalTotalBalanceDue = totalAmountDue - finalAmountPaid;
-        }
+        const finalAmountPaid = parseFloat(amountPaid) || 0;
         
         onPreviewInvoice({ 
             shopId: currentShopId, 
@@ -676,9 +779,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             languageMode, 
             previousBalance, 
             amountPaid: finalAmountPaid, 
-            totalBalanceDue: finalTotalBalanceDue, 
+            totalBalanceDue: newBalanceDue, 
             returnReason,
-            paymentDetailsEntered: wasBalanceExplicitlySetByUser || amountPaid.trim() !== ''
+            paymentDetailsEntered: amountPaid.trim() !== ''
         });
     };
 
@@ -742,51 +845,54 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                 </section>
 
                 <aside className="sale-sidebar">
-                    {saleItems.some(i => i.isReturn) && (<div className="form-group"><label htmlFor="return-reason">Reason for Return (Optional)</label><textarea id="return-reason" className="input-field" rows={2} value={returnReason || ''} onChange={e => onSessionUpdate({ returnReason: e.target.value })} placeholder="e.g., Damaged item" /></div>)}
-                    
-                    <div className="totals-summary">
-                        <div className="total-row"><span>Gross Total</span><span>{formatCurrency(grossTotal)}</span></div>
-                        {returnTotal > 0 && (<div className="total-row return-total-row"><span>Return Total</span><span>-{formatCurrency(returnTotal)}</span></div>)}
-                        {taxAmount > 0 && (<div className="total-row"><span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span></div>)}
+                    <div className="totals-summary-wrapper">
+                        {saleItems.some(i => i.isReturn) && (<div className="form-group"><label htmlFor="return-reason">Reason for Return (Optional)</label><textarea id="return-reason" className="input-field" rows={2} value={returnReason || ''} onChange={e => onSessionUpdate({ returnReason: e.target.value })} placeholder="e.g., Damaged item" /></div>)}
                         
-                        {(previousBalance > 0) && (<div className="total-row"><span>Previous Balance</span><span>{formatCurrency(previousBalance)}</span></div>)}
-                        
-                        <div className="total-row amount-paid-row">
-                            <label htmlFor="amount-paid-input">Amount Paid</label>
-                            <div className="amount-paid-input-group">
-                                 <button className="action-button-secondary amount-paid-yes" onClick={handlePayFullWithYes}>Yes</button>
-                                <input
-                                    id="amount-paid-input"
-                                    type="number"
-                                    className="input-field"
-                                    value={amountPaid}
-                                    onChange={e => handleAmountPaidChange(e.target.value)}
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    aria-label="Amount Paid"
-                                />
+                        <div className="totals-summary">
+                            <div className="total-row"><span>Gross Total</span><span>{formatCurrency(grossTotal)}</span></div>
+                            {returnTotal > 0 && (<div className="total-row return-total-row"><span>Return Total</span><span>-{formatCurrency(returnTotal)}</span></div>)}
+                            <div className="total-row"><span>Subtotal</span><span>{formatCurrency(netSaleTotal)}</span></div>
+                            {taxAmount > 0 && (<div className="total-row"><span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span></div>)}
+                            <div className="total-row sale-total-row"><span>Current Sale</span><span>{formatCurrency(currentSaleGrandTotal)}</span></div>
+                            
+                            <div className="balance-summary-section">
+                                <div className="total-row"><span>Previous Balance</span><span>{formatCurrency(previousBalance)}</span></div>
+                                <div className="total-row total-due-row"><span>Total Amount Due</span><span>{formatCurrency(totalAmountDue)}</span></div>
+                            </div>
+                            
+                            <div className="payment-section">
+                                <div className="total-row amount-paid-row">
+                                    <label htmlFor="amount-paid-input">Amount Paid</label>
+                                    <div className="amount-paid-input-group">
+                                        <button className="action-button-secondary amount-paid-yes" onClick={handlePayFull}>Full</button>
+                                        <input
+                                            id="amount-paid-input"
+                                            type="number"
+                                            className="input-field"
+                                            value={amountPaid}
+                                            onChange={e => handleAmountPaidChange(e.target.value)}
+                                            placeholder="0.00"
+                                            step="0.01"
+                                            aria-label="Amount Paid"
+                                        />
+                                    </div>
+                                </div>
+
+                                {changeDue > 0 && (
+                                    <div className="total-row change-due-row">
+                                        <span>Change Due</span>
+                                        <span>{formatCurrency(changeDue)}</span>
+                                    </div>
+                                )}
+
+                                {newBalanceDue > 0 && !changeDue && (
+                                    <div className="total-row new-balance-due-row">
+                                        <span>New Balance Due</span>
+                                        <span>{formatCurrency(newBalanceDue)}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
-
-                        {changeDue > 0 ? (
-                            <div className="total-row change-due-row">
-                                <span>Change</span>
-                                <span>{formatCurrency(changeDue)}</span>
-                            </div>
-                        ) : (
-                            <div className="total-row total-balance-due-row">
-                                <label htmlFor="total-balance-due-input">Total Balance Due</label>
-                                <input
-                                    id="total-balance-due-input"
-                                    type="number"
-                                    className="input-field"
-                                    value={totalBalanceDueStr}
-                                    onChange={e => handleTotalBalanceDueChange(e.target.value)}
-                                    step="0.01"
-                                    aria-label="Total Balance Due"
-                                />
-                            </div>
-                        )}
                     </div>
 
                     <div className="finalize-section">
@@ -794,7 +900,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                             <label htmlFor="tax-percent">Tax %</label>
                             <input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} />
                         </div>
-                        <button className="finalize-button" onClick={handlePreviewClick}>Preview Invoice</button>
+                        <button className="finalize-button" onClick={handlePreviewClick}>Finish Sale &amp; Preview</button>
                     </div>
                 </aside>
             </main>
@@ -807,20 +913,36 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
 type ProductInventoryPageProps = {
     products: Product[];
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
+    onBulkAddProducts: (products: Omit<Product, 'id' | 'shopId'>[]) => Promise<void>;
     shops: Shop[];
 };
-const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, shops }) => {
+const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onBulkAddProducts, shops }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredProducts = useMemo(() => {
+        if (!searchTerm) return products;
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return products.filter(p => 
+            p.name.toLowerCase().includes(lowercasedTerm) ||
+            (p.barcode && p.barcode.toLowerCase().includes(lowercasedTerm)) ||
+            (p.category && p.category.toLowerCase().includes(lowercasedTerm)) ||
+            (p.subcategory && p.subcategory.toLowerCase().includes(lowercasedTerm))
+        );
+    }, [products, searchTerm]);
 
     const handleExportPdf = () => {
         const doc = new jsPDF();
-        const tableColumn = ["ID", "Name (English)", "Shop", "B2B Price", "B2C Price", "Stock", "Barcode"];
+        const tableColumn = ["ID", "Name (English)", "Category", "Subcategory", "Shop", "B2B Price", "B2C Price", "Stock", "Barcode"];
         const tableRows: (string | number)[][] = [];
 
-        products.forEach(product => {
+        filteredProducts.forEach(product => {
             const productData = [
                 product.id,
                 product.name,
+                product.category || 'N/A',
+                product.subcategory || 'N/A',
                 shops.find(s => s.id === product.shopId)?.name || 'N/A',
                 formatCurrency(product.b2bPrice),
                 formatCurrency(product.b2cPrice),
@@ -833,12 +955,10 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
         doc.setFontSize(18);
         doc.text("Product Inventory List", 14, 22);
         
-        // Manually create the table since autotable plugin is not available
         const startX = 14;
         let y = 30;
-        const colWidths = [15, 60, 35, 25, 25, 20, 30];
+        const colWidths = [10, 40, 25, 25, 25, 20, 20, 15, 30];
 
-        // Draw header
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         tableColumn.forEach((header, i) => {
@@ -846,13 +966,11 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
         });
         y += 8;
         
-        // Draw rows
         doc.setFont('helvetica', 'normal');
         tableRows.forEach(row => {
             if (y > 280) { // Page break
                 doc.addPage();
                 y = 20;
-                 // Redraw header on new page
                 doc.setFont('helvetica', 'bold');
                 tableColumn.forEach((header, i) => {
                     doc.text(header, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), y);
@@ -862,7 +980,6 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             }
             row.forEach((cell, i) => {
                 const text = String(cell);
-                // Wrap text if needed
                 const splitText = doc.splitTextToSize(text, colWidths[i] - 5);
                  doc.text(splitText, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), y);
             });
@@ -875,18 +992,49 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     return (
         <div className="page-container">
             <AddProductModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAddProduct={onAddProduct} />
+            <ImportProductsModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onBulkAdd={onBulkAddProducts} />
             <div className="page-header">
                 <h2 className="page-title">Product Inventory</h2>
                 <div className="page-header-actions">
+                    <button className="action-button-secondary" onClick={() => setIsImportModalOpen(true)}>Import Bulk Products</button>
                     <button className="action-button-secondary" onClick={handleExportPdf}>Export as PDF</button>
                     <button className="action-button-primary" onClick={() => setIsAddModalOpen(true)}>Add New Product</button>
+                </div>
+            </div>
+            <div className="inventory-controls">
+                <div className="input-with-icon">
+                    <svg className="search-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
+                    <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="Search by name, barcode, category..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
                 </div>
             </div>
             <div className="inventory-layout">
                 <div className="inventory-list-container">
                      <table className="inventory-table">
-                        <thead><tr><th>ID</th><th>Name (English)</th><th>Name (Tamil)</th><th>Shop</th><th>B2B Price</th><th>B2C Price</th><th>Stock</th><th>Barcode</th></tr></thead>
-                        <tbody>{products.map(p => (<tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}><td data-label="ID">{p.id}</td><td data-label="Name (English)">{p.name}</td><td data-label="Name (Tamil)">{p.nameTamil}</td><td data-label="Shop">{shops.find(s => s.id === p.shopId)?.name || 'N/A'}</td><td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td><td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td><td data-label="Stock">{p.stock}</td><td data-label="Barcode">{p.barcode || 'N/A'}</td></tr>))}</tbody>
+                        <thead><tr><th>ID</th><th>Name (English)</th><th>Category</th><th>Subcategory</th><th>Shop</th><th>B2B Price</th><th>B2C Price</th><th>Stock</th><th>Barcode</th></tr></thead>
+                        <tbody>
+                            {filteredProducts.length === 0 && (
+                                <tr><td colSpan={9} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
+                            )}
+                            {filteredProducts.map(p => (
+                                <tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}>
+                                    <td data-label="ID">{p.id}</td>
+                                    <td data-label="Name (English)">{p.name}</td>
+                                    <td data-label="Category">{p.category || 'N/A'}</td>
+                                    <td data-label="Subcategory">{p.subcategory || 'N/A'}</td>
+                                    <td data-label="Shop">{shops.find(s => s.id === p.shopId)?.name || 'N/A'}</td>
+                                    <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
+                                    <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
+                                    <td data-label="Stock">{p.stock}</td>
+                                    <td data-label="Barcode">{p.barcode || 'N/A'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -928,7 +1076,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     if (!saleData) return (<div className="page-container"><h2 className="page-title">Invoice</h2><p>No sale data available.</p><button onClick={() => onNavigate('New Sale')} className="action-button-primary">Back to Sale</button></div>);
     const { customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode, grandTotal, previousBalance, totalBalanceDue, amountPaid, grossTotal, returnTotal, returnReason, paymentDetailsEntered } = saleData;
     const regularItems = saleItems.filter(item => !item.isReturn);
-    const returnedItems = saleItems.filter(item => item.isReturn);
+    const returnedItems = saleItems.filter(item => !item.isReturn);
     const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const handlePrint = () => window.print();
@@ -1192,6 +1340,516 @@ const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ allSalesHistory
     return (<div className="page-container admin-dashboard-page"><h2 className="page-title">Admin Dashboard</h2><div className="report-filters"><div className="form-group"><label htmlFor="report-period">Select Period</label><select id="report-period" value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="select-field"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7days">Last 7 Days</option><option value="1month">Last 1 Month</option></select></div></div><div className="summary-cards"><div className="summary-card"><h3 data-label="Metric">Total Sales (All Shops)</h3><p>{formatCurrency(totalSales)}</p></div><div className="summary-card"><h3 data-label="Metric">Total Transactions</h3><p>{transactionCount}</p></div><div className="summary-card"><h3 data-label="Metric">Avg. Sale Value</h3><p>{formatCurrency(transactionCount > 0 ? totalSales / transactionCount : 0)}</p></div></div><div className="admin-dashboard-layout"><div className="dashboard-section management-card"><h3>Sales by Shop</h3><table className="inventory-table"><thead><tr><th>Shop Name</th><th>Transactions</th><th>Total Sales</th></tr></thead><tbody>{salesByShop.map(s => (<tr key={s.shopId}><td data-label="Shop Name">{s.shopName}</td><td data-label="Transactions">{s.transactionCount}</td><td data-label="Total Sales">{formatCurrency(s.totalSales)}</td></tr>))}</tbody></table></div><div className="dashboard-section management-card"><h3>Top Selling Products</h3><table className="inventory-table"><thead><tr><th>Product</th><th>Quantity Sold</th><th>Total Value</th></tr></thead><tbody>{topProducts.map(p => (<tr key={p.productId}><td data-label="Product">{p.name}</td><td data-label="Quantity Sold">{formatQuantity(p.quantity)}</td><td data-label="Total Value">{formatCurrency(p.total)}</td></tr>))}</tbody></table></div></div></div>);
 };
 
+// --- CREATE ORDER MODAL ---
+type CreateOrderModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    orderType: 'purchase' | 'sales';
+    products: Product[];
+    onSubmit: (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => Promise<void>;
+    onUpdate: (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => Promise<void>;
+    initialData: PurchaseOrder | SalesOrder | null;
+};
+const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ isOpen, onClose, orderType, products, onSubmit, onUpdate, initialData }) => {
+    const isEditMode = !!initialData;
+    const [supplierName, setSupplierName] = useState('');
+    const [customerName, setCustomerName] = useState('');
+    const [customerMobile, setCustomerMobile] = useState('');
+    const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [suggestions, setSuggestions] = useState<Product[]>([]);
+    const [activeSuggestion, setActiveSuggestion] = useState(-1);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const supplierNameRef = useRef<HTMLInputElement>(null);
+    const customerNameRef = useRef<HTMLInputElement>(null);
+    const customerMobileRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const prevOrderItemsLength = useRef(0);
+
+    useEffect(() => {
+        if (isOpen) {
+            setSearchTerm('');
+            setSuggestions([]);
+            setActiveSuggestion(-1);
+            setIsSubmitting(false);
+
+            if (isEditMode && initialData) {
+                setOrderItems(initialData.items);
+                if (orderType === 'purchase') {
+                    setSupplierName((initialData as PurchaseOrder).supplierName);
+                } else {
+                    setCustomerName((initialData as SalesOrder).customerName);
+                    setCustomerMobile((initialData as SalesOrder).customerMobile);
+                }
+            } else {
+                setSupplierName('');
+                setCustomerName('');
+                setCustomerMobile('');
+                setOrderItems([]);
+            }
+             prevOrderItemsLength.current = isEditMode && initialData ? initialData.items.length : 0;
+        }
+    }, [isOpen, isEditMode, initialData, orderType]);
+
+    useEffect(() => {
+        if (orderItems.length > prevOrderItemsLength.current) {
+            const lastQuantityInput = document.querySelector<HTMLInputElement>('.order-items-grid tbody tr:last-child input[data-field="quantity"]');
+            if (lastQuantityInput) {
+                lastQuantityInput.focus();
+                lastQuantityInput.select();
+            }
+        }
+        prevOrderItemsLength.current = orderItems.length;
+    }, [orderItems]);
+
+
+    useEffect(() => {
+        if (searchTerm) {
+            const lowercasedTerm = searchTerm.toLowerCase();
+            const filtered = products.filter(p => p.name.toLowerCase().includes(lowercasedTerm) || p.barcode === searchTerm);
+            setSuggestions(filtered);
+        } else {
+            setSuggestions([]);
+        }
+        setActiveSuggestion(-1);
+    }, [searchTerm, products]);
+
+    const handleProductSelect = (product: Product) => {
+        const existingItemIndex = orderItems.findIndex(item => item.productId === product.id);
+        if (existingItemIndex > -1) {
+            const newItems = [...orderItems];
+            newItems[existingItemIndex].quantity += 1;
+            setOrderItems(newItems);
+        } else {
+            const newItem: OrderItem = {
+                productId: product.id,
+                name: product.name,
+                quantity: 1,
+                price: orderType === 'purchase' ? product.b2bPrice : product.b2cPrice,
+            };
+            setOrderItems(prev => [...prev, newItem]);
+        }
+        setSearchTerm('');
+        setSuggestions([]);
+        searchInputRef.current?.focus();
+    };
+
+    const handleItemUpdate = (index: number, field: keyof OrderItem, value: any) => {
+        const updatedItems = [...orderItems];
+        if (field === 'quantity' || field === 'price') {
+            (updatedItems[index] as any)[field] = parseFloat(value) || 0;
+        } else {
+            (updatedItems[index] as any)[field] = value;
+        }
+        setOrderItems(updatedItems);
+    };
+
+    const handleItemRemove = (index: number) => {
+        setOrderItems(orderItems.filter((_, i) => i !== index));
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActiveSuggestion(prev => (prev < suggestions.length - 1 ? prev + 1 : prev)); } 
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveSuggestion(prev => (prev > 0 ? prev - 1 : prev)); } 
+        else if (e.key === 'Enter' && suggestions.length > 0) {
+            e.preventDefault();
+            const selectionIndex = activeSuggestion === -1 ? 0 : activeSuggestion;
+            if (selectionIndex >= 0 && selectionIndex < suggestions.length) { handleProductSelect(suggestions[selectionIndex]); }
+        }
+    };
+    
+    const handleGridKeyDown = (e: React.KeyboardEvent, field: 'quantity' | 'price') => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = e.target as HTMLInputElement;
+            if (field === 'quantity') {
+                const priceInput = target.closest('tr')?.querySelector<HTMLInputElement>('input[data-field="price"]');
+                priceInput?.focus();
+                priceInput?.select();
+            } else if (field === 'price') {
+                searchInputRef.current?.focus();
+            }
+        }
+    };
+
+    const totalAmount = useMemo(() => orderItems.reduce((acc, item) => acc + item.quantity * item.price, 0), [orderItems]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (orderItems.length === 0) { alert('Please add at least one item to the order.'); return; }
+        
+        let orderData;
+        if (orderType === 'purchase') {
+            if (!supplierName.trim()) { alert('Please enter a supplier name.'); return; }
+            orderData = { supplierName, items: orderItems, totalAmount };
+        } else {
+            if (!customerName.trim() || !customerMobile.trim()) { alert('Please enter customer name and mobile.'); return; }
+            orderData = { customerName, customerMobile, items: orderItems, totalAmount };
+        }
+        
+        setIsSubmitting(true);
+        try {
+            if (isEditMode) {
+                await onUpdate(orderData);
+            } else {
+                await onSubmit(orderData);
+            }
+            onClose();
+        } catch (error) {
+            alert(`Error processing order: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '800px'}}>
+                <div className="modal-header">
+                    <h3>{isEditMode ? `Edit` : `New`} {orderType === 'purchase' ? 'Purchase Order' : 'Sales Order'}</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <form id="create-order-form" onSubmit={handleSubmit}>
+                    <div className="modal-body">
+                        {orderType === 'purchase' ? (
+                            <div className="form-group">
+                                <label htmlFor="supplier-name">Supplier Name</label>
+                                <input ref={supplierNameRef} id="supplier-name" type="text" className="input-field" value={supplierName} onChange={e => setSupplierName(e.target.value)} required autoFocus onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); searchInputRef.current?.focus(); }}} />
+                            </div>
+                        ) : (
+                            <div className="customer-details">
+                                <div className="form-group">
+                                    <label htmlFor="order-customer-name">Customer Name</label>
+                                    <input ref={customerNameRef} id="order-customer-name" type="text" className="input-field" value={customerName} onChange={e => setCustomerName(e.target.value)} required autoFocus onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); customerMobileRef.current?.focus(); }}} />
+                                </div>
+                                <div className="form-group">
+                                    <label htmlFor="order-customer-mobile">Customer Mobile</label>
+                                    <input ref={customerMobileRef} id="order-customer-mobile" type="text" className="input-field" value={customerMobile} onChange={e => setCustomerMobile(e.target.value)} required onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); searchInputRef.current?.focus(); }}} />
+                                </div>
+                            </div>
+                        )}
+                        <hr style={{border: 'none', borderTop: `1px solid var(--border-color)`, margin: 'var(--padding-md) 0'}} />
+                        <div className="form-group product-search-container">
+                            <label htmlFor="order-product-search">Add Products</label>
+                            <input id="order-product-search" type="text" className="input-field" placeholder="Start typing product name or barcode..." ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={handleSearchKeyDown} autoComplete="off" />
+                            {suggestions.length > 0 && (
+                                <div className="product-suggestions">
+                                    {suggestions.map((p, i) => (
+                                        <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>{p.name} - Stock: {p.stock}</div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="sales-grid-container">
+                            <table className="sales-grid order-items-grid">
+                                <thead><tr><th>Product</th><th>Quantity</th><th>Price</th><th>Total</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    {orderItems.length === 0 && (<tr><td colSpan={5} style={{textAlign: 'center', padding: '1rem'}}>No items added.</td></tr>)}
+                                    {orderItems.map((item, index) => (
+                                        <tr key={item.productId}>
+                                            <td data-label="Product">{item.name}</td>
+                                            <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', e.target.value)} onKeyDown={e => handleGridKeyDown(e, 'quantity')} step="0.001" /></td>
+                                            <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', e.target.value)} onKeyDown={e => handleGridKeyDown(e, 'price')} step="0.01" /></td>
+                                            <td data-label="Total">{formatCurrency(item.quantity * item.price)}</td>
+                                            <td data-label="Actions"><button type="button" className="action-button" onClick={() => handleItemRemove(index)} aria-label={`Remove ${item.name}`}>&times;</button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="total-row" style={{justifyContent: 'flex-end', fontWeight: 'bold', fontSize: '1.2rem', marginTop: 'var(--padding-md)'}}>
+                            <span>Total Amount</span><span>{formatCurrency(totalAmount)}</span>
+                        </div>
+                    </div>
+                    <div className="modal-footer">
+                        <button className="action-button-secondary" type="button" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+                        <button type="submit" form="create-order-form" className="action-button-primary" disabled={isSubmitting}>
+                            {isSubmitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Order' : 'Finish & Create Order')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+
+// --- ORDER MANAGEMENT COMPONENTS ---
+const OrderStatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
+    const getStatusClassName = () => {
+        switch (status) {
+            case 'Pending': return 'status-pending';
+            case 'Fulfilled': return 'status-fulfilled';
+            case 'Cancelled': return 'status-cancelled';
+            default: return '';
+        }
+    };
+    return <span className={`status-badge ${getStatusClassName()}`}>{status}</span>;
+};
+
+type OrderDetailsModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    order: PurchaseOrder | SalesOrder | null;
+    orderType: 'purchase' | 'sales';
+    onUpdateStatus: (orderId: number, newStatus: OrderStatus) => void;
+};
+
+const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ isOpen, onClose, order, orderType, onUpdateStatus }) => {
+    if (!isOpen || !order) return null;
+
+    const handleAction = (newStatus: OrderStatus) => {
+        const confirmMessage = newStatus === 'Fulfilled'
+            ? 'Are you sure you want to fulfill this order? This will update your stock levels.'
+            : 'Are you sure you want to cancel this order? This action cannot be undone.';
+        
+        if (window.confirm(confirmMessage)) {
+            onUpdateStatus(order.id, newStatus);
+        }
+    };
+
+    const isPurchaseOrder = (o: any): o is PurchaseOrder => orderType === 'purchase';
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '700px'}}>
+                <div className="modal-header">
+                    <h3>Order Details (ID: {order.id})</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="modal-body order-details-modal-body">
+                    <div className="order-details-summary">
+                        <div><strong>Date:</strong> {new Date(order.orderDate).toLocaleString()}</div>
+                        {isPurchaseOrder(order) ? (
+                            <div><strong>Supplier:</strong> {order.supplierName}</div>
+                        ) : (
+                            <div><strong>Customer:</strong> {(order as SalesOrder).customerName} ({(order as SalesOrder).customerMobile})</div>
+                        )}
+                        <div><strong>Status:</strong> <OrderStatusBadge status={order.status} /></div>
+                    </div>
+                    <h4>Items</h4>
+                    <div className="sales-grid-container" style={{maxHeight: '300px'}}>
+                        <table className="sales-grid">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Price</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {order.items.map((item, index) => (
+                                    <tr key={index}>
+                                        <td data-label="Product">{item.name}</td>
+                                        <td data-label="Quantity" style={{textAlign: 'right'}}>{formatQuantity(item.quantity)}</td>
+                                        <td data-label="Price" style={{textAlign: 'right'}}>{formatCurrency(item.price)}</td>
+                                        <td data-label="Total" style={{textAlign: 'right'}}>{formatCurrency(item.quantity * item.price)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="total-row" style={{justifyContent: 'flex-end', fontWeight: 'bold', fontSize: '1.4rem', marginTop: 'var(--padding-md)'}}>
+                        <span>Total Amount</span>
+                        <span>{formatCurrency(order.totalAmount)}</span>
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose}>Close</button>
+                    {order.status === 'Pending' && (
+                        <div className="action-buttons-group">
+                            <button className="action-button-secondary danger" onClick={() => handleAction('Cancelled')}>Cancel Order</button>
+                            <button className="action-button-secondary success" onClick={() => handleAction('Fulfilled')}>Fulfill Order</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+type OrderManagementPageProps = {
+    purchaseOrders: PurchaseOrder[];
+    salesOrders: SalesOrder[];
+    products: Product[];
+    currentShopId: number | null;
+    onAddPurchaseOrder: (order: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => Promise<void>;
+    onAddSalesOrder: (order: Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => Promise<void>;
+    onUpdateOrderStatus: (orderId: number, orderType: 'purchase' | 'sales', newStatus: OrderStatus) => Promise<void>;
+    onUpdateOrder: (orderId: number, orderType: 'purchase' | 'sales', orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => Promise<void>;
+};
+
+const OrderManagementPage: React.FC<OrderManagementPageProps> = ({ purchaseOrders, salesOrders, products, onAddPurchaseOrder, onAddSalesOrder, onUpdateOrderStatus, onUpdateOrder }) => {
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [orderToView, setOrderToView] = useState<PurchaseOrder | SalesOrder | null>(null);
+    const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | SalesOrder | null>(null);
+    const [modalOrderType, setModalOrderType] = useState<'purchase' | 'sales'>('purchase');
+
+    const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
+        await onUpdateOrderStatus(orderId, modalOrderType, newStatus);
+        setOrderToView(null);
+    };
+
+    const handleOpenCreateModal = (type: 'purchase' | 'sales') => {
+        setModalOrderType(type);
+        setOrderToEdit(null);
+        setIsCreateModalOpen(true);
+    };
+
+    const handleOpenEditModal = (order: PurchaseOrder | SalesOrder, type: 'purchase' | 'sales') => {
+        setModalOrderType(type);
+        setOrderToEdit(order);
+        setIsCreateModalOpen(true);
+    };
+
+    const handleViewOrder = (order: PurchaseOrder | SalesOrder, type: 'purchase' | 'sales') => {
+        setModalOrderType(type);
+        setOrderToView(order);
+    };
+
+    const handleCloseModal = () => {
+        setIsCreateModalOpen(false);
+        setOrderToEdit(null);
+    };
+    
+    const handleSubmitNewOrder = async (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
+        if (modalOrderType === 'purchase') {
+            await onAddPurchaseOrder(orderData as Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'>);
+        } else {
+            await onAddSalesOrder(orderData as Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>);
+        }
+    };
+    
+    const handleSubmitUpdateOrder = async (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
+        if (!orderToEdit) return;
+        await onUpdateOrder(orderToEdit.id, modalOrderType, orderData);
+    };
+
+    const sortedPurchaseOrders = useMemo(() => [...purchaseOrders].sort((a,b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()), [purchaseOrders]);
+    const sortedSalesOrders = useMemo(() => [...salesOrders].sort((a,b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()), [salesOrders]);
+
+    return (
+        <div className="page-container page-container-full-width">
+            <h2 className="page-title">Order Management</h2>
+            <CreateOrderModal 
+                isOpen={isCreateModalOpen}
+                onClose={handleCloseModal}
+                orderType={modalOrderType}
+                products={products}
+                onSubmit={handleSubmitNewOrder}
+                onUpdate={handleSubmitUpdateOrder}
+                initialData={orderToEdit}
+             />
+             <OrderDetailsModal
+                isOpen={!!orderToView}
+                onClose={() => setOrderToView(null)}
+                order={orderToView}
+                orderType={modalOrderType}
+                onUpdateStatus={handleStatusChange}
+             />
+            
+            <div className="order-management-layout">
+                {/* Purchase Orders Column */}
+                <div className="order-column">
+                    <div className="order-column-header">
+                        <h3>Purchase Orders</h3>
+                        <button className="action-button-primary" onClick={() => handleOpenCreateModal('purchase')}>
+                            + New Purchase Order
+                        </button>
+                    </div>
+                    <div className="inventory-list-container">
+                        <table className="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Supplier</th>
+                                    <th>Date</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedPurchaseOrders.length === 0 && (
+                                    <tr><td colSpan={6} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No purchase orders.</td></tr>
+                                )}
+                                {sortedPurchaseOrders.map(order => (
+                                    <tr key={order.id}>
+                                        <td data-label="ID">{order.id}</td>
+                                        <td data-label="Supplier">{order.supplierName}</td>
+                                        <td data-label="Date">{new Date(order.orderDate).toLocaleDateString()}</td>
+                                        <td data-label="Total">{formatCurrency(order.totalAmount)}</td>
+                                        <td data-label="Status"><OrderStatusBadge status={order.status} /></td>
+                                        <td data-label="Actions">
+                                            <div className="table-action-buttons">
+                                                <button className="action-button-secondary" onClick={() => handleViewOrder(order, 'purchase')}>View</button>
+                                                {order.status === 'Pending' && (
+                                                    <button className="action-button-secondary" onClick={() => handleOpenEditModal(order, 'purchase')}>Edit</button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Sales Orders Column */}
+                <div className="order-column">
+                    <div className="order-column-header">
+                        <h3>Sales Orders</h3>
+                        <button className="action-button-primary" onClick={() => handleOpenCreateModal('sales')}>
+                            + New Sales Order
+                        </button>
+                    </div>
+                    <div className="inventory-list-container">
+                        <table className="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedSalesOrders.length === 0 && (
+                                    <tr><td colSpan={6} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No sales orders.</td></tr>
+                                )}
+                                {sortedSalesOrders.map(order => (
+                                    <tr key={order.id}>
+                                        <td data-label="ID">{order.id}</td>
+                                        <td data-label="Customer">{`${order.customerName} (${order.customerMobile})`}</td>
+                                        <td data-label="Date">{new Date(order.orderDate).toLocaleDateString()}</td>
+                                        <td data-label="Total">{formatCurrency(order.totalAmount)}</td>
+                                        <td data-label="Status"><OrderStatusBadge status={order.status} /></td>
+                                        <td data-label="Actions">
+                                            <div className="table-action-buttons">
+                                                <button className="action-button-secondary" onClick={() => handleViewOrder(order, 'sales')}>View</button>
+                                                {order.status === 'Pending' && (
+                                                    <button className="action-button-secondary" onClick={() => handleOpenEditModal(order, 'sales')}>Edit</button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- LOGIN PAGE COMPONENT ---
 type LoginPageProps = { onLogin: (user: User) => void; };
@@ -1219,6 +1877,8 @@ const App = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [notes, setNotes] = useState<Note[]>(initialNotes);
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
     const [pendingSaleData, setPendingSaleData] = useState<SaleData | null>(null);
     const [isSaleFinalized, setIsSaleFinalized] = useState<boolean>(false);
     const [theme, setTheme] = useState<Theme>('professional-light');
@@ -1235,7 +1895,7 @@ const App = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('desktop');
     const syncIntervalRef = useRef<number | null>(null);
 
-    const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, saleItems: [], amountPaid: '', totalBalanceDueStr: '', returnReason: '', }), []);
+    const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, saleItems: [], amountPaid: '', returnReason: '', }), []);
     const [saleSessions, setSaleSessions] = useState<SaleSession[]>([ {...initialSaleSession}, {...initialSaleSession}, {...initialSaleSession} ]);
     const [activeBillIndex, setActiveBillIndex] = useState(0);
 
@@ -1282,13 +1942,15 @@ const App = () => {
     const loadDataFromDb = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [products, sales, customers, shops, users, expenses] = await Promise.all([
+            const [products, sales, customers, shops, users, expenses, purchaseOrders, salesOrders] = await Promise.all([
                 dbManager.getAll<Product>('products'),
                 dbManager.getAll<SaleData>('sales'),
                 dbManager.getAll<Customer>('customers'),
                 dbManager.getAll<Shop>('shops'),
                 dbManager.getAll<User>('users'),
                 dbManager.getAll<Expense>('expenses'),
+                dbManager.getAll<PurchaseOrder>('purchaseOrders'),
+                dbManager.getAll<SalesOrder>('salesOrders'),
             ]);
             setAllProducts(products);
             setAllSalesHistory(sales.map(s => ({...s, date: new Date(s.date) })).sort((a,b) => b.date.getTime() - a.date.getTime()));
@@ -1296,6 +1958,9 @@ const App = () => {
             setShops(shops);
             setUsers(users);
             setExpenses(expenses.map(e => ({...e, date: new Date(e.date) })).sort((a,b) => b.date.getTime() - a.date.getTime()));
+            setPurchaseOrders(purchaseOrders.map(o => ({...o, orderDate: new Date(o.orderDate) })).sort((a,b) => b.orderDate.getTime() - a.orderDate.getTime()));
+            setSalesOrders(salesOrders.map(o => ({...o, orderDate: new Date(o.orderDate) })).sort((a,b) => b.orderDate.getTime() - a.orderDate.getTime()));
+
         } catch (error) {
             setAppError("Failed to load data from local database.");
         } finally {
@@ -1336,6 +2001,22 @@ const App = () => {
         }
         return expenses.filter(e => e.shopId === currentUser?.shopId);
     }, [expenses, currentUser, selectedShopId]);
+    
+    const visiblePurchaseOrders = useMemo(() => {
+        if (currentUser?.role === 'admin') {
+            if (!selectedShopId) return purchaseOrders;
+            return purchaseOrders.filter(o => o.shopId === selectedShopId);
+        }
+        return purchaseOrders.filter(o => o.shopId === currentUser?.shopId);
+    }, [purchaseOrders, currentUser, selectedShopId]);
+    
+    const visibleSalesOrders = useMemo(() => {
+        if (currentUser?.role === 'admin') {
+            if (!selectedShopId) return salesOrders;
+            return salesOrders.filter(o => o.shopId === selectedShopId);
+        }
+        return salesOrders.filter(o => o.shopId === currentUser?.shopId);
+    }, [salesOrders, currentUser, selectedShopId]);
 
     const updateCurrentSaleSession = (updates: Partial<SaleSession>) => setSaleSessions(prev => { const newSessions = [...prev]; newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates }; return newSessions; });
     const resetCurrentSaleSession = () => setSaleSessions(prev => { const newSessions = [...prev]; newSessions[activeBillIndex] = {...initialSaleSession}; return newSessions; });
@@ -1352,6 +2033,7 @@ const App = () => {
             await Promise.all([
                 dbManager.clear('shops'), dbManager.clear('customers'), dbManager.clear('users'),
                 dbManager.clear('products'), dbManager.clear('sales'), dbManager.clear('expenses'),
+                dbManager.clear('purchaseOrders'), dbManager.clear('salesOrders')
             ]);
             await Promise.all([
                 dbManager.bulkPut('shops', shopsData || []), dbManager.bulkPut('customers', customersData || []),
@@ -1384,6 +2066,22 @@ const App = () => {
         setAllProducts(prev => [...prev, newProduct]);
         processSyncQueue();
         return newProduct;
+    };
+    const handleBulkAddProducts = async (products: Omit<Product, 'id' | 'shopId'>[]) => {
+        if (!currentShopContextId) {
+            throw new Error("Admins must select a shop from the header before importing products.");
+        }
+        const newProducts: Product[] = products.map(p => ({
+            ...p,
+            id: Date.now() + Math.random(), // Simple unique ID for now
+            shopId: currentShopContextId,
+        }));
+        await dbManager.bulkPut('products', newProducts);
+        for (const p of newProducts) {
+            await dbManager.put('outbox', { type: 'addProduct', payload: p });
+        }
+        setAllProducts(prev => [...prev, ...newProducts]);
+        processSyncQueue();
     };
     const handleAddCustomer = async (newCustomerData: Omit<Customer, 'balance'>) => {
         if (customers.some(c => c.mobile === newCustomerData.mobile)) throw new Error("Mobile number already exists.");
@@ -1422,6 +2120,115 @@ const App = () => {
         await dbManager.put('users', user); await dbManager.put('outbox', { type: 'addUser', payload: user });
         setUsers(prev => [...prev, user]); processSyncQueue();
     };
+
+    const handleAddPurchaseOrder = async (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
+        if (!currentShopContextId) throw new Error("Cannot create an order without a selected shop.");
+        const newOrder: PurchaseOrder = { ...orderData, id: Date.now(), shopId: currentShopContextId, orderDate: new Date(), status: 'Pending' };
+        await dbManager.put('purchaseOrders', newOrder);
+        await dbManager.put('outbox', { type: 'addPurchaseOrder', payload: newOrder });
+        setPurchaseOrders(prev => [newOrder, ...prev]);
+        processSyncQueue();
+    };
+
+    const handleAddSalesOrder = async (orderData: Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
+        if (!currentShopContextId) throw new Error("Cannot create an order without a selected shop.");
+        const newOrder: SalesOrder = { ...orderData, id: Date.now(), shopId: currentShopContextId, orderDate: new Date(), status: 'Pending' };
+        await dbManager.put('salesOrders', newOrder);
+        await dbManager.put('outbox', { type: 'addSalesOrder', payload: newOrder });
+        setSalesOrders(prev => [newOrder, ...prev]);
+        processSyncQueue();
+    };
+
+    const handleUpdateOrder = async (orderId: number, orderType: 'purchase' | 'sales', orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'status'> | Omit<SalesOrder, 'id' | 'shopId' | 'status'>) => {
+        const storeName = orderType === 'purchase' ? 'purchaseOrders' : 'salesOrders';
+        const setStateAction = orderType === 'purchase' ? setPurchaseOrders : setSalesOrders;
+
+        const originalOrder = await dbManager.get<PurchaseOrder | SalesOrder>(storeName, orderId);
+        if (!originalOrder) throw new Error("Order not found.");
+        if (originalOrder.status !== 'Pending') throw new Error("Only pending orders can be edited.");
+        
+        const updatedOrder: PurchaseOrder | SalesOrder = {
+            ...originalOrder,
+            ...orderData,
+            orderDate: new Date(originalOrder.orderDate),
+        };
+
+        await dbManager.put(storeName, updatedOrder);
+        await dbManager.put('outbox', { type: `update${orderType.charAt(0).toUpperCase() + orderType.slice(1)}Order`, payload: updatedOrder });
+        
+        setStateAction(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+        processSyncQueue();
+    };
+    
+    const handleUpdateOrderStatus = async (orderId: number, orderType: 'purchase' | 'sales', newStatus: OrderStatus) => {
+        const storeName = orderType === 'purchase' ? 'purchaseOrders' : 'salesOrders';
+        const setStateAction = orderType === 'purchase' ? setPurchaseOrders : setSalesOrders;
+    
+        const orderToUpdate = await dbManager.get<PurchaseOrder | SalesOrder>(storeName, orderId);
+    
+        if (!orderToUpdate) {
+            alert(`Error: Order with ID ${orderId} not found.`);
+            return;
+        }
+    
+        if (orderToUpdate.status !== 'Pending') {
+            alert(`This order has already been processed and its status is '${orderToUpdate.status}'. No further actions can be taken.`);
+            return;
+        }
+    
+        if (newStatus === 'Fulfilled') {
+            const updatedProductsMap = new Map(allProducts.map(p => [p.id, { ...p }]));
+            let stockUpdateError = false;
+    
+            for (const item of orderToUpdate.items) {
+                const product = updatedProductsMap.get(item.productId);
+                if (product) {
+                    if (orderType === 'sales' && product.stock < item.quantity) {
+                        alert(`Cannot fulfill order: Insufficient stock for product "${product.name}". Required: ${item.quantity}, Available: ${product.stock}.`);
+                        stockUpdateError = true;
+                        break;
+                    }
+                    product.stock += (orderType === 'purchase' ? item.quantity : -item.quantity);
+                    updatedProductsMap.set(product.id, product);
+                } else {
+                    alert(`Product with ID ${item.productId} not found in inventory.`);
+                    stockUpdateError = true;
+                    break;
+                }
+            }
+    
+            if (stockUpdateError) return;
+    
+            const productsToUpdateInDb = Array.from(updatedProductsMap.values()).filter(p => 
+                orderToUpdate.items.some(item => item.productId === p.id)
+            );
+            
+            await dbManager.bulkPut('products', productsToUpdateInDb);
+            for (const p of productsToUpdateInDb) {
+                await dbManager.put('outbox', { type: 'updateProduct', payload: p });
+            }
+            setAllProducts(Array.from(updatedProductsMap.values()));
+        }
+    
+        const updatedOrderForDB: PurchaseOrder | SalesOrder = {
+            ...orderToUpdate,
+            status: newStatus,
+            orderDate: new Date(orderToUpdate.orderDate),
+        };
+    
+        await dbManager.put(storeName, updatedOrderForDB);
+        await dbManager.put('outbox', { type: `update${orderType.charAt(0).toUpperCase() + orderType.slice(1)}Order`, payload: updatedOrderForDB });
+    
+        setStateAction(prevOrders => prevOrders.map(order => 
+            order.id === orderId 
+                ? { ...order, status: newStatus, orderDate: new Date(order.orderDate) } 
+                : order
+        ));
+        
+        processSyncQueue();
+        alert(`Order ${orderId} has been successfully ${newStatus.toLowerCase()}.`);
+    };
+
     const handlePreviewInvoice = (saleData: Omit<SaleData, 'id' | 'date'>) => {
         const completeSaleData: SaleData = { ...saleData, id: `sale-${Date.now()}`, date: new Date() };
         setPendingSaleData(completeSaleData); setIsSaleFinalized(false); setCurrentPage('Invoice');
@@ -1440,10 +2247,10 @@ const App = () => {
         }
         if (pendingSaleData.customerMobile) {
             const customer = await dbManager.get<Customer>('customers', pendingSaleData.customerMobile);
-            if (customer) {
-                customer.balance = pendingSaleData.totalBalanceDue;
-                await dbManager.put('customers', customer);
-            }
+            const newCustomer: Customer = customer || { mobile: pendingSaleData.customerMobile, name: pendingSaleData.customerName, balance: 0 };
+            newCustomer.balance = pendingSaleData.totalBalanceDue;
+            newCustomer.name = pendingSaleData.customerName || newCustomer.name;
+            await dbManager.put('customers', newCustomer);
         }
         setAllSalesHistory(prev => [pendingSaleData, ...prev].sort((a,b) => b.date.getTime() - a.date.getTime()));
         setAllProducts(updatedProducts);
@@ -1473,7 +2280,8 @@ const App = () => {
         switch (currentPage) {
             case 'Admin Dashboard': return <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} />;
             case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} onPreviewInvoice={handlePreviewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
-            case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} shops={shops} />;
+            case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} shops={shops} />;
+            case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
             case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} onConfirmFinalizeSale={handleConfirmFinalizeSale} isFinalized={isSaleFinalized} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
             case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
