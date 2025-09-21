@@ -800,18 +800,31 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     };
 
     const {
-        grossTotal, returnTotal, netSaleTotal, taxAmount, roundedGrandTotal,
+        grossTotal, returnTotal, grandTotal, taxAmount, netPayable,
         previousBalance, totalAmountDue, newBalanceDue, changeDue
     } = useMemo(() => {
-        const grossTotal = saleItems.filter(item => !item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
-        const returnTotal = saleItems.filter(item => item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
-        const netSaleTotal = grossTotal - returnTotal;
-        const taxAmount = netSaleTotal * (taxPercent / 100);
-        const grandTotalBeforeRounding = netSaleTotal + taxAmount;
-        const roundedGrandTotal = Math.round(grandTotalBeforeRounding);
+        // Gross Total: Sum of all items that are NOT returns.
+        const grossTotal = saleItems
+            .filter(item => !item.isReturn)
+            .reduce((acc, item) => acc + item.quantity * item.price, 0);
+
+        // Return Total: Sum of all items that ARE returns.
+        const returnTotal = saleItems
+            .filter(item => item.isReturn)
+            .reduce((acc, item) => acc + item.quantity * item.price, 0);
+
+        // Grand Total: The subtotal before tax.
+        const grandTotal = grossTotal - returnTotal;
+        
+        const taxAmount = grandTotal * (taxPercent / 100);
+
+        const finalTotalBeforeRounding = grandTotal + taxAmount;
+        
+        // Net Payable: The final total, rounded to the nearest whole number (0.5 rounds up).
+        const netPayable = Math.round(finalTotalBeforeRounding);
 
         const previousBalance = activeCustomer?.balance ?? 0;
-        const totalAmountDue = previousBalance + roundedGrandTotal;
+        const totalAmountDue = previousBalance + netPayable;
         
         const paid = parseFloat(amountPaid) || 0;
         const balance = totalAmountDue - paid;
@@ -820,7 +833,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         const changeDue = balance < 0 ? -balance : 0;
 
         return {
-            grossTotal, returnTotal, netSaleTotal, taxAmount, roundedGrandTotal,
+            grossTotal, returnTotal, grandTotal, taxAmount, netPayable,
             previousBalance, totalAmountDue, newBalanceDue, changeDue
         };
     }, [saleItems, taxPercent, activeCustomer, amountPaid]);
@@ -846,10 +859,10 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             saleItems, 
             grossTotal, 
             returnTotal, 
-            subtotal: netSaleTotal, 
+            subtotal: grandTotal, 
             taxAmount, 
             taxPercent, 
-            grandTotal: roundedGrandTotal, 
+            grandTotal: netPayable, 
             languageMode, 
             previousBalance, 
             amountPaid: finalAmountPaid, 
@@ -942,9 +955,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         <div className="totals-summary">
                             <div className="total-row"><span>Gross Total</span><span>{formatCurrency(grossTotal)}</span></div>
                             {returnTotal > 0 && (<div className="total-row return-total-row"><span>Return Total</span><span>-{formatCurrency(returnTotal)}</span></div>)}
-                            <div className="total-row"><span>Grand Total</span><span>{formatCurrency(netSaleTotal)}</span></div>
+                            <div className="total-row"><span>Grand Total</span><span>{formatCurrency(grandTotal)}</span></div>
                             {taxAmount > 0 && (<div className="total-row"><span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span></div>)}
-                            <div className="total-row sale-total-row"><span>Net Payable</span><span>{formatCurrency(roundedGrandTotal)}</span></div>
+                            <div className="total-row sale-total-row"><span>Net Payable</span><span>{formatCurrency(netPayable)}</span></div>
                             
                             <div className="balance-summary-section">
                                 <div className="total-row"><span>Previous Balance</span><span>{formatCurrency(previousBalance)}</span></div>
@@ -1167,7 +1180,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     if (!saleData) return (<div className="page-container"><h2 className="page-title">Invoice</h2><p>No sale data available.</p><button onClick={() => onNavigate('New Sale')} className="action-button-primary">Back to Sale</button></div>);
     const { customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode, grandTotal, previousBalance, totalBalanceDue, amountPaid, grossTotal, returnTotal, returnReason, paymentDetailsEntered } = saleData;
     const regularItems = saleItems.filter(item => !item.isReturn);
-    const returnedItems = saleItems.filter(item => !item.isReturn);
+    const returnedItems = saleItems.filter(item => item.isReturn);
     const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const handlePrint = () => window.print();
