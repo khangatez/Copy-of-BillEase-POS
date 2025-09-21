@@ -570,11 +570,82 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
 };
 
 
+// --- CUSTOMER HISTORY MODAL ---
+type CustomerHistoryModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    customer: Customer | null;
+    salesHistory: SaleData[];
+    onViewInvoice: (sale: SaleData) => void;
+};
+
+const CustomerHistoryModal: React.FC<CustomerHistoryModalProps> = ({ isOpen, onClose, customer, salesHistory, onViewInvoice }) => {
+    if (!isOpen || !customer) return null;
+
+    const customerSales = useMemo(() => {
+        return salesHistory
+            .filter(sale => sale.customerMobile === customer.mobile)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [salesHistory, customer]);
+
+    const handleViewClick = (sale: SaleData) => {
+        onViewInvoice(sale);
+        onClose();
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '800px'}}>
+                <div className="modal-header">
+                    <h3>Purchase History for {customer.name}</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="modal-body">
+                    <div className="inventory-list-container" style={{maxHeight: '60vh'}}>
+                        <table className="inventory-table sales-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Items</th>
+                                    <th>Total Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {customerSales.length === 0 ? (
+                                    <tr><td colSpan={4} style={{textAlign: 'center', padding: '2rem'}}>No purchase history found for this customer.</td></tr>
+                                ) : (
+                                    customerSales.map(sale => (
+                                        <tr key={sale.id}>
+                                            <td data-label="Date">{new Date(sale.date).toLocaleString()}</td>
+                                            <td data-label="Items">{sale.saleItems.length}</td>
+                                            <td data-label="Total Amount">{formatCurrency(sale.grandTotal)}</td>
+                                            <td data-label="Actions">
+                                                <button className="action-button-secondary" onClick={() => handleViewClick(sale)}>View Invoice</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose}>Close</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // --- NEW SALE PAGE COMPONENT ---
 type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
+    salesHistory: SaleData[];
     onPreviewInvoice: (saleData: Omit<SaleData, 'id' | 'date'>) => void;
+    onViewInvoice: (sale: SaleData) => void;
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
     onUpdateProduct: (updatedProduct: Product) => void;
     userRole: User['role'];
@@ -587,7 +658,7 @@ type NewSalePageProps = {
     onViewModeChange: (mode: ViewMode) => void;
 };
 
-const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPreviewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, viewMode, onViewModeChange }) => {
+const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, viewMode, onViewModeChange }) => {
     const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, amountPaid, returnReason } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
@@ -598,6 +669,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
     const [voiceError, setVoiceError] = useState('');
     const [voiceSearchHistory, setVoiceSearchHistory] = useState<string[]>([]);
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const mobileInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const prevSaleItemsLengthRef = useRef(saleItems.length);
@@ -728,16 +800,18 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
     };
 
     const {
-        grossTotal, returnTotal, netSaleTotal, taxAmount, currentSaleGrandTotal,
+        grossTotal, returnTotal, netSaleTotal, taxAmount, roundedGrandTotal,
         previousBalance, totalAmountDue, newBalanceDue, changeDue
     } = useMemo(() => {
         const grossTotal = saleItems.filter(item => !item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
         const returnTotal = saleItems.filter(item => item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
         const netSaleTotal = grossTotal - returnTotal;
         const taxAmount = netSaleTotal * (taxPercent / 100);
-        const currentSaleGrandTotal = netSaleTotal + taxAmount;
+        const grandTotalBeforeRounding = netSaleTotal + taxAmount;
+        const roundedGrandTotal = Math.round(grandTotalBeforeRounding);
+
         const previousBalance = activeCustomer?.balance ?? 0;
-        const totalAmountDue = previousBalance + currentSaleGrandTotal;
+        const totalAmountDue = previousBalance + roundedGrandTotal;
         
         const paid = parseFloat(amountPaid) || 0;
         const balance = totalAmountDue - paid;
@@ -746,7 +820,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
         const changeDue = balance < 0 ? -balance : 0;
 
         return {
-            grossTotal, returnTotal, netSaleTotal, taxAmount, currentSaleGrandTotal,
+            grossTotal, returnTotal, netSaleTotal, taxAmount, roundedGrandTotal,
             previousBalance, totalAmountDue, newBalanceDue, changeDue
         };
     }, [saleItems, taxPercent, activeCustomer, amountPaid]);
@@ -775,7 +849,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
             subtotal: netSaleTotal, 
             taxAmount, 
             taxPercent, 
-            grandTotal: currentSaleGrandTotal, 
+            grandTotal: roundedGrandTotal, 
             languageMode, 
             previousBalance, 
             amountPaid: finalAmountPaid, 
@@ -787,6 +861,13 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
 
     return (
         <div className="page-container">
+            <CustomerHistoryModal 
+                isOpen={isHistoryModalOpen}
+                onClose={() => setIsHistoryModalOpen(false)}
+                customer={activeCustomer}
+                salesHistory={salesHistory}
+                onViewInvoice={onViewInvoice}
+            />
             <main className="new-sale-layout">
                 <section className="sale-main" aria-labelledby="sale-heading">
                     <h2 id="sale-heading" className="page-title" style={{ marginBottom: 'var(--padding-md)' }}>New Sale</h2>
@@ -821,6 +902,16 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                                 {voiceSearchHistory.length > 0 && (<div className="voice-search-history">{voiceSearchHistory.map((item, index) => (<button key={index} className="history-item" onClick={() => setSearchTerm(item)}>{item}</button>))}</div>)}
                             </div>
                         </div>
+                         <div className="product-add-button-container">
+                            <button 
+                                className="action-button-secondary"
+                                onClick={() => setIsHistoryModalOpen(true)}
+                                disabled={!activeCustomer}
+                                title={!activeCustomer ? "Enter a known customer's mobile to view history" : `View history for ${customerName}`}
+                            >
+                                History
+                            </button>
+                        </div>
                     </div>
                     {isScannerOpen && (<div className="barcode-scanner-container"><div id="barcode-reader" style={{ width: '100%', maxWidth: '500px' }}></div><button onClick={() => setIsScannerOpen(false)} className="action-button-secondary">Cancel</button></div>)}
                     <div className="sales-grid-container">
@@ -851,9 +942,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, onPrevie
                         <div className="totals-summary">
                             <div className="total-row"><span>Gross Total</span><span>{formatCurrency(grossTotal)}</span></div>
                             {returnTotal > 0 && (<div className="total-row return-total-row"><span>Return Total</span><span>-{formatCurrency(returnTotal)}</span></div>)}
-                            <div className="total-row"><span>Subtotal</span><span>{formatCurrency(netSaleTotal)}</span></div>
+                            <div className="total-row"><span>Grand Total</span><span>{formatCurrency(netSaleTotal)}</span></div>
                             {taxAmount > 0 && (<div className="total-row"><span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span></div>)}
-                            <div className="total-row sale-total-row"><span>Current Sale</span><span>{formatCurrency(currentSaleGrandTotal)}</span></div>
+                            <div className="total-row sale-total-row"><span>Net Payable</span><span>{formatCurrency(roundedGrandTotal)}</span></div>
                             
                             <div className="balance-summary-section">
                                 <div className="total-row"><span>Previous Balance</span><span>{formatCurrency(previousBalance)}</span></div>
@@ -2279,7 +2370,7 @@ const App = () => {
     const renderPage = () => {
         switch (currentPage) {
             case 'Admin Dashboard': return <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} />;
-            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} onPreviewInvoice={handlePreviewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
+            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
             case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} shops={shops} />;
             case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
             case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} onConfirmFinalizeSale={handleConfirmFinalizeSale} isFinalized={isSaleFinalized} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
@@ -2290,7 +2381,7 @@ const App = () => {
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
             case 'Shop Management': return currentUser.role === 'admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} /> : <p>Access Denied</p>;
-            default: return currentUser.role === 'admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} onPreviewInvoice={handlePreviewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
+            default: return currentUser.role === 'admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
         }
     };
     return (<div className={viewMode === 'mobile' ? 'view-mode-mobile' : ''}><AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={handleShopChange} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} /><main className="app-main">{renderPage()}</main></div>);

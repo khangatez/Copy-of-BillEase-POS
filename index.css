@@ -1,5 +1,3 @@
-
-
 :root {
   --font-family: 'Inter', sans-serif;
   --border-radius: 6px;
@@ -489,10 +487,15 @@ body {
   flex-grow: 1;
 }
 
-.product-add-button-container .action-button-secondary {
-    padding: 10px; /* Match input field height */
-    white-space: nowrap;
+.product-add-button-container {
+    flex-shrink: 0;
 }
+
+.product-add-button-container .action-button-secondary {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
 
 .input-with-icons {
     position: relative;
