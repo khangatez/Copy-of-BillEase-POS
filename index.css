@@ -1,3 +1,4 @@
+
 :root {
   --font-family: 'Inter', sans-serif;
   --border-radius: 6px;
@@ -1536,9 +1537,31 @@ body {
     border-radius: var(--border-radius);
     text-align: center;
 }
+.success-message {
+    color: var(--success-color);
+    background-color: rgba(40, 167, 69, 0.1);
+    padding: var(--padding-sm);
+    border-radius: var(--border-radius);
+    text-align: center;
+}
 .login-button {
     padding: 12px;
     font-size: 1.1rem;
+}
+.login-footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--padding-md);
+    align-items: center;
+    margin-top: var(--padding-sm);
+}
+.forgot-password-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.forgot-password-link:hover {
+    text-decoration: underline;
 }
 .login-info {
   text-align: center;
@@ -1640,14 +1663,6 @@ body {
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite;
-}
-.success-message {
-    color: var(--success-color);
-    font-weight: 500;
-    text-align: center;
-    background-color: rgba(var(--success-color), 0.1);
-    padding: var(--padding-sm);
-    border-radius: var(--border-radius);
 }
 
 @keyframes spin {
@@ -1862,229 +1877,4 @@ body {
 
 .table-action-buttons {
     display: flex;
-    gap: var(--padding-sm);
-    justify-content: flex-end;
-}
-
-.table-action-buttons .action-button-secondary {
-    padding: 6px 12px;
-    font-size: 0.9rem;
-}
-
-.action-buttons-group .action-button-secondary.success {
-    border-color: var(--success-color);
-    color: var(--success-color);
-}
-.action-buttons-group .action-button-secondary.success:hover {
-    background-color: var(--success-color);
-    color: var(--background-secondary);
-}
-.action-buttons-group .action-button-secondary.danger {
-    border-color: var(--danger-color);
-    color: var(--danger-color);
-}
-.action-buttons-group .action-button-secondary.danger:hover {
-    background-color: var(--danger-color);
-    color: var(--background-secondary);
-}
-
-.order-details-modal-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-}
-
-.order-details-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--padding-sm);
-    background-color: var(--background-tertiary);
-    padding: var(--padding-md);
-    border-radius: var(--border-radius);
-}
-
-.order-details-summary div {
-    font-size: 1rem;
-}
-
-.modal-footer .action-buttons-group {
-    margin-left: auto;
-}
-
-
-/* --- Loading and Error States --- */
-.loading-container, .error-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    text-align: center;
-    padding: var(--padding-lg);
-}
-.error-container {
-    background-color: var(--background-secondary);
-    border: 1px solid var(--danger-color);
-    border-radius: var(--border-radius);
-    margin: var(--padding-lg) auto;
-    max-width: 600px;
-    color: var(--danger-color);
-}
-.error-container h2 {
-    margin-bottom: var(--padding-sm);
-}
-.error-container p {
-    color: var(--text-primary);
-    margin-bottom: var(--padding-md);
-}
-.error-container button {
-    background-color: var(--accent-primary);
-    color: var(--background-secondary);
-    padding: var(--padding-sm) var(--padding-md);
-    border-radius: var(--border-radius);
-    border: none;
-    cursor: pointer;
-}
-
-/* Accessibility */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* --- Mobile / Responsive --- */
-@media (max-width: 1024px) {
-    .new-sale-layout {
-        grid-template-columns: 1fr;
-        height: auto;
-    }
-    .order-management-layout {
-        grid-template-columns: 1fr;
-        height: auto;
-    }
-    .order-column {
-        height: auto;
-        max-height: 60vh; /* Give columns a max height on smaller screens */
-    }
-}
-
-@media (max-width: 768px) {
-  body { font-size: 16px; }
-  .app-header { flex-direction: column; gap: var(--padding-sm); }
-  .header-user-info { flex-wrap: wrap; justify-content: center; width: 100%; }
-  .header-welcome-message { display: none; }
-  .app-main { padding: var(--padding-sm); }
-  
-  .inventory-table thead { display: none; }
-  .inventory-table, .inventory-table tbody, .inventory-table tr, .inventory-table td { display: block; width: 100%; }
-  .inventory-table tr {
-      background-color: var(--background-secondary);
-      border-radius: var(--border-radius);
-      margin-bottom: var(--padding-md);
-      padding: var(--padding-sm);
-      border: 1px solid var(--border-color);
-  }
-  .inventory-table td {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px;
-      border-bottom: 1px solid var(--border-color);
-      text-align: right;
-  }
-   .inventory-table td:last-child {
-      border-bottom: none;
-  }
-  .inventory-table td::before {
-      content: attr(data-label);
-      font-weight: bold;
-      text-align: left;
-      margin-right: var(--padding-md);
-      color: var(--text-secondary);
-  }
-  .sales-history-table .table-action-buttons {
-      justify-content: flex-end;
-  }
-  
-  .shop-management-layout, .expenses-page, .admin-dashboard-layout {
-      grid-template-columns: 1fr;
-  }
-  .customer-management-layout {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-  .customer-list-panel {
-      border-right: none;
-      border-bottom: 1px solid var(--border-color);
-      max-height: 40vh;
-  }
-  
-  .invoice-actions, .invoice-controls {
-      flex-direction: column;
-      align-items: stretch;
-  }
-  .invoice-main-actions {
-      flex-direction: column;
-      align-items: stretch;
-  }
-  .whatsapp-group {
-      flex-direction: column;
-      align-items: stretch;
-  }
-   .whatsapp-group .input-field, .whatsapp-group .action-button-primary {
-       border-radius: var(--border-radius);
-   }
-
-  /* Force Mobile View Mode Styles */
-  .view-mode-mobile .new-sale-layout {
-      grid-template-columns: 1fr;
-      height: auto;
-  }
-   .view-mode-mobile .sales-grid thead { display: none; }
-   .view-mode-mobile .sales-grid, .view-mode-mobile .sales-grid tbody, .view-mode-mobile .sales-grid tr, .view-mode-mobile .sales-grid td { display: block; width: 100%; }
-   .view-mode-mobile .sales-grid tr {
-       background-color: var(--background-tertiary);
-       border-radius: var(--border-radius);
-       margin-bottom: var(--padding-md);
-       padding: var(--padding-sm);
-       border: 1px solid var(--border-color);
-   }
-   .view-mode-mobile .sales-grid tr.is-return {
-       background-color: rgba(220, 53, 69, 0.1);
-   }
-   .view-mode-mobile .sales-grid td {
-       display: flex;
-       justify-content: space-between;
-       align-items: center;
-       padding: 10px;
-       border-bottom: 1px solid var(--border-color);
-       text-align: right;
-   }
-   .view-mode-mobile .sales-grid td:last-child { border: none; }
-   .view-mode-mobile .sales-grid td::before {
-       content: attr(data-label);
-       font-weight: bold;
-       text-align: left;
-       margin-right: auto;
-       color: var(--text-secondary);
-   }
-    .view-mode-mobile .sales-grid td[data-label="Product"],
-    .view-mode-mobile .sales-grid td[data-label="Quantity"],
-    .view-mode-mobile .sales-grid td[data-label="Price"] {
-       padding-right: 0;
-   }
-   .view-mode-mobile .sales-grid td[data-label="Product"] .input-field-seamless,
-   .view-mode-mobile .sales-grid td[data-label="Quantity"] .input-field,
-   .view-mode-mobile .sales-grid td[data-label="Price"] .input-field {
-       width: 120px;
-       max-width: 40%;
-   }
-
-}
+    gap: var(--padding-sm

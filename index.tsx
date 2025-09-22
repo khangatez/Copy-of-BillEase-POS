@@ -71,10 +71,14 @@ interface Expense {
 
 interface User {
     username: string;
-    password?: string; // Optional for CurrentUser
-    role: 'admin' | 'manager' | 'cashier';
+    email?: string;
+    password?: string;
+    role: 'super_admin' | 'admin' | 'cashier';
     shopId?: number;
+    resetToken?: string;
+    resetTokenExpiry?: number;
 }
+
 
 interface Shop {
     id: number;
@@ -266,8 +270,9 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     // MOCK RESPONSES
     if (url.startsWith('/auth/login')) {
         const body = JSON.parse(options.body as string);
-        if (body.username === 'admin' && body.password === 'admin') return { token: 'fake-admin-token', user: { username: 'admin', role: 'admin' } };
-        if (body.username === 'manager1' && body.password === 'password') return { token: 'fake-manager-token', user: { username: 'manager1', role: 'manager', shopId: 1 } };
+        if (body.username === 'superadmin' && body.password === 'password') return { token: 'fake-superadmin-token', user: { username: 'superadmin', role: 'super_admin', email: 'super@admin.com' } };
+        if (body.username === 'admin1' && body.password === 'password') return { token: 'fake-admin1-token', user: { username: 'admin1', role: 'admin', shopId: 1, email: 'admin1@shop.com' } };
+        if (body.username === 'cashier1' && body.password === 'password') return { token: 'fake-cashier1-token', user: { username: 'cashier1', role: 'cashier', shopId: 1, email: 'cashier1@shop.com' } };
         throw new Error("Invalid credentials");
     }
     if(url.startsWith('/sync/push')) {
@@ -283,7 +288,11 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     if(url === '/sales') return MOCK_SALES;
     if(url.startsWith('/sales?shop_id=')) return MOCK_SALES.filter(s => s.shopId === Number(url.split('=')[1]));
     if(url.startsWith('/customers')) return [{ mobile: '+917601984346', name: 'Christy (from API)', balance: 50.75 }];
-    if(url.startsWith('/users')) return [{ username: 'manager1', password: 'password', role: 'manager', shopId: 1 }];
+    if(url.startsWith('/users')) return [
+        { username: 'superadmin', password: 'password', role: 'super_admin', email: 'super@admin.com' },
+        { username: 'admin1', password: 'password', role: 'admin', shopId: 1, email: 'admin1@shop.com' },
+        { username: 'cashier1', password: 'password', role: 'cashier', shopId: 1, email: 'cashier1@shop.com' }
+    ];
     if(url.startsWith('/shops')) return [{ id: 1, name: "Main Street Branch" }, { id: 2, name: "Downtown Kiosk"}];
     if(options.method === 'POST') return { ...JSON.parse(options.body as string), id: Date.now() };
 };
@@ -351,18 +360,20 @@ type HeaderProps = {
 const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, appName, shops, selectedShopId, onShopChange, syncStatus, pendingSyncCount }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const allMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Shop Management'];
-  const managerMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Balance Due'];
-  const cashierMenuItems = ['New Sale'];
+  
   const getMenuItems = () => {
+    const superAdminMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Manage Users'];
+    const adminMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Balance Due'];
+    const cashierMenuItems = ['New Sale'];
     switch(currentUser.role) {
-        case 'admin': return allMenuItems;
-        case 'manager': return managerMenuItems;
+        case 'super_admin': return superAdminMenuItems;
+        case 'admin': return adminMenuItems;
         case 'cashier': return cashierMenuItems;
         default: return [];
     }
   };
   const menuItems = getMenuItems();
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setDropdownOpen(false);
@@ -371,13 +382,14 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   const currentShopName = shops.find(s => s.id === selectedShopId)?.name || 'All Shops';
+
   return (
     <header className="app-header">
       <h1 className="header-title">{appName}</h1>
       <div className="header-user-info">
         <SyncStatusIndicator status={syncStatus} pendingCount={pendingSyncCount} />
-        <span className="header-welcome-message">Welcome, {currentUser.username} ({currentUser.role}){currentUser.role !== 'admin' && ` @ ${currentShopName}`}</span>
-        {currentUser.role === 'admin' && shops.length > 0 && (
+        <span className="header-welcome-message">Welcome, {currentUser.username} ({currentUser.role}){currentUser.role !== 'super_admin' && ` @ ${currentShopName}`}</span>
+        {currentUser.role === 'super_admin' && shops.length > 0 && (
             <div className="shop-selector">
                 <label htmlFor="shop-select" className="sr-only">Select Shop</label>
                 <select id="shop-select" className="select-field" value={selectedShopId || 'all'} onChange={(e) => onShopChange(e.target.value === 'all' ? 0 : Number(e.target.value))}>
@@ -751,7 +763,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     const handleItemUpdate = (index: number, field: keyof SaleItem | 'name', value: any) => {
         const updatedItems = [...saleItems]; (updatedItems[index] as any)[field] = value;
         onSessionUpdate({ saleItems: updatedItems });
-        if (userRole !== 'admin') return;
+        if (userRole !== 'super_admin') return;
         const item = updatedItems[index];
         const productToUpdate = products.find(p => p.id === item.productId);
         if (!productToUpdate) return;
@@ -851,7 +863,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         if (!currentShopId) { alert("Cannot create a sale without a selected shop."); return; }
         
         const finalAmountPaid = parseFloat(amountPaid) || 0;
-        const paymentDetailsEntered = amountPaid.trim() !== '' && finalAmountPaid !== totalAmountDue;
+        // Show payment details unless the amount paid is exactly the total amount due.
+        // This ensures details are shown for partial, over, or zero payments on a non-zero bill.
+        const paymentDetailsEntered = finalAmountPaid !== totalAmountDue;
         
         onPreviewInvoice({ 
             shopId: currentShopId, 
@@ -936,9 +950,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                                 {saleItems.map((item, index) => (
                                     <tr key={`${item.productId}-${index}`} className={item.isReturn ? 'is-return' : ''}>
                                         <td data-label="S.No">{index + 1}</td>
-                                        <td data-label="Product"><input type="text" className="input-field-seamless" value={item.name} onChange={e => handleItemUpdate(index, 'name', e.target.value)} aria-label={`Product name for ${item.name}`} disabled={userRole !== 'admin'} /></td>
+                                        <td data-label="Product"><input type="text" className="input-field-seamless" value={item.name} onChange={e => handleItemUpdate(index, 'name', e.target.value)} aria-label={`Product name for ${item.name}`} disabled={userRole !== 'super_admin'} /></td>
                                         <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'quantity')} aria-label={`Quantity for ${item.name}`} step="0.001" /></td>
-                                        <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'price')} aria-label={`Price for ${item.name}`} step="0.01" disabled={userRole !== 'admin'} /></td>
+                                        <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'price')} aria-label={`Price for ${item.name}`} step="0.01" disabled={userRole !== 'super_admin'} /></td>
                                         <td data-label="Total">{formatNumberForInvoice(item.quantity * item.price)}</td>
                                         <td data-label="Return"><button className={`return-toggle-button ${item.isReturn ? 'is-return-active' : ''}`} onClick={() => handleItemUpdate(index, 'isReturn', !item.isReturn)} aria-label={`Toggle return status for ${item.name}. Currently ${item.isReturn ? 'Yes' : 'No'}`}>{item.isReturn ? 'Y' : 'N'}</button></td>
                                         <td data-label="Actions"><button className="action-button" onClick={() => handleItemRemove(index)} aria-label={`Remove ${item.name}`}>&times;</button></td>
@@ -1407,14 +1421,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, setti
 };
 
 // --- SHOP MANAGEMENT PAGE ---
-type ShopManagementPageProps = { users: User[]; shops: Shop[]; onAddShop: (name: string) => Promise<void>; onAddUser: (user: Omit<User, 'id' | 'password'> & { password?: string }) => Promise<void>; onUpdateShop: (id: number, name: string) => void; };
-const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, onAddShop, onAddUser, onUpdateShop }) => {
-    const [newShopName, setNewShopName] = useState(''); const [newUsername, setNewUsername] = useState(''); const [newPassword, setNewPassword] = useState(''); const [newUserRole, setNewUserRole] = useState<'manager' | 'cashier'>('cashier'); const [newUserShopId, setNewUserShopId] = useState<number | undefined>(shops[0]?.id); const [editingShopId, setEditingShopId] = useState<number | null>(null); const [editingShopName, setEditingShopName] = useState('');
+type ShopManagementPageProps = { users: User[]; shops: Shop[]; onAddShop: (name: string) => Promise<void>; onAddUser: (user: Omit<User, 'password' | 'resetToken' | 'resetTokenExpiry'> & { password?: string }) => Promise<void>; onUpdateShop: (id: number, name: string) => void; onAdminPasswordReset: (username: string, newPass: string) => Promise<void>;};
+const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, onAddShop, onAddUser, onUpdateShop, onAdminPasswordReset }) => {
+    const [newShopName, setNewShopName] = useState(''); const [newUsername, setNewUsername] = useState(''); const [newEmail, setNewEmail] = useState(''); const [newPassword, setNewPassword] = useState(''); const [newUserRole, setNewUserRole] = useState<'admin' | 'cashier'>('cashier'); const [newUserShopId, setNewUserShopId] = useState<number | undefined>(shops[0]?.id); const [editingShopId, setEditingShopId] = useState<number | null>(null); const [editingShopName, setEditingShopName] = useState('');
     const handleAddShop = async (e: React.FormEvent) => { e.preventDefault(); if (newShopName.trim()) { try { await onAddShop(newShopName.trim()); setNewShopName(''); } catch (error) { alert(`Error: ${error instanceof Error ? error.message : String(error)}`); } } };
-    const handleAddUser = async (e: React.FormEvent) => { e.preventDefault(); if (newUsername.trim() && newPassword.trim() && newUserShopId) { try { await onAddUser({ username: newUsername.trim(), password: newPassword.trim(), role: newUserRole, shopId: newUserShopId, }); setNewUsername(''); setNewPassword(''); setNewUserRole('cashier'); setNewUserShopId(shops[0]?.id); } catch (error) { alert(`Error: ${error instanceof Error ? error.message : String(error)}`); } } };
+    const handleAddUser = async (e: React.FormEvent) => { e.preventDefault(); if (newUsername.trim() && newPassword.trim() && newUserShopId) { try { await onAddUser({ username: newUsername.trim(), email: newEmail.trim(), password: newPassword.trim(), role: newUserRole, shopId: newUserShopId, }); setNewUsername(''); setNewEmail(''); setNewPassword(''); setNewUserRole('cashier'); setNewUserShopId(shops[0]?.id); } catch (error) { alert(`Error: ${error instanceof Error ? error.message : String(error)}`); } } };
     const handleStartEdit = (shop: Shop) => { setEditingShopId(shop.id); setEditingShopName(shop.name); }; const handleCancelEdit = () => { setEditingShopId(null); setEditingShopName(''); }
     const handleSaveEdit = (id: number) => { if (editingShopName.trim()) { onUpdateShop(id, editingShopName.trim()); handleCancelEdit(); } }
-    return (<div className="page-container"><h2 className="page-title">Shop Management</h2><div className="shop-management-layout"><div className="management-card"><h3>Manage Shops</h3><form onSubmit={handleAddShop}><div className="form-group"><label htmlFor="new-shop-name">New Shop Name</label><input id="new-shop-name" type="text" className="input-field" value={newShopName} onChange={e => setNewShopName(e.target.value)} placeholder="e.g., Downtown Branch" /></div><button type="submit" className="action-button-primary">Add Shop</button></form><div className="shop-list-container"><h4>Existing Shops</h4><ul className="shop-list">{shops.map(shop => (<li key={shop.id} className="shop-list-item">{editingShopId === shop.id ? (<div className="edit-shop-form"><input type="text" className="input-field" value={editingShopName} onChange={(e) => setEditingShopName(e.target.value)} /><div className="edit-shop-actions"><button className="action-button-secondary" onClick={handleCancelEdit}>Cancel</button><button className="action-button-primary" onClick={() => handleSaveEdit(shop.id)}>Save</button></div></div>) : (<><span>{shop.name}</span><button className="action-button-secondary" onClick={() => handleStartEdit(shop)}>Edit</button></>)}</li>))}</ul></div></div><div className="management-card"><h3>Manage Users</h3><form onSubmit={handleAddUser}><div className="form-group"><label htmlFor="new-username">Username</label><input id="new-username" type="text" className="input-field" value={newUsername} onChange={e => setNewUsername(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-password">Password</label><input id="new-password" type="text" className="input-field" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-user-role">Role</label><select id="new-user-role" className="select-field" value={newUserRole} onChange={e => setNewUserRole(e.target.value as 'manager' | 'cashier')}><option value="cashier">Cashier</option><option value="manager">Manager</option></select></div><div className="form-group"><label htmlFor="new-user-shop">Shop</label><select id="new-user-shop" className="select-field" value={newUserShopId} onChange={e => setNewUserShopId(Number(e.target.value))} required>{shops.map(shop => (<option key={shop.id} value={shop.id}>{shop.name}</option>))}</select></div><button type="submit" className="action-button-primary">Add User</button></form><div className="user-list-container"><table className="inventory-table"><thead><tr><th>Username</th><th>Password</th><th>Role</th><th>Shop</th></tr></thead><tbody>{users.filter(u => u.role !== 'admin').map(user => (<tr key={user.username}><td data-label="Username">{user.username}</td><td data-label="Password">{user.password}</td><td data-label="Role">{user.role}</td><td data-label="Shop">{shops.find(s => s.id === user.shopId)?.name || 'N/A'}</td></tr>))}</tbody></table></div></div></div></div>);
+    const handleResetPasswordClick = (username: string) => { const newPass = prompt(`Enter new password for user '${username}':`); if (newPass && newPass.trim()) { onAdminPasswordReset(username, newPass.trim()); } else if (newPass !== null) { alert('Password cannot be empty.'); } };
+    return (<div className="page-container page-container-full-width"><h2 className="page-title">User & Shop Management</h2><div className="shop-management-layout"><div className="management-card"><h3>Manage Shops</h3><form onSubmit={handleAddShop}><div className="form-group"><label htmlFor="new-shop-name">New Shop Name</label><input id="new-shop-name" type="text" className="input-field" value={newShopName} onChange={e => setNewShopName(e.target.value)} placeholder="e.g., Downtown Branch" /></div><button type="submit" className="action-button-primary">Add Shop</button></form><div className="shop-list-container"><h4>Existing Shops</h4><ul className="shop-list">{shops.map(shop => (<li key={shop.id} className="shop-list-item">{editingShopId === shop.id ? (<div className="edit-shop-form"><input type="text" className="input-field" value={editingShopName} onChange={(e) => setEditingShopName(e.target.value)} /><div className="edit-shop-actions"><button className="action-button-secondary" onClick={handleCancelEdit}>Cancel</button><button className="action-button-primary" onClick={() => handleSaveEdit(shop.id)}>Save</button></div></div>) : (<><span>{shop.name}</span><button className="action-button-secondary" onClick={() => handleStartEdit(shop)}>Edit</button></>)}</li>))}</ul></div></div><div className="management-card"><h3>Manage Users</h3><form onSubmit={handleAddUser}><div className="form-group"><label htmlFor="new-username">Username</label><input id="new-username" type="text" className="input-field" value={newUsername} onChange={e => setNewUsername(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-email">Email</label><input id="new-email" type="email" className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} /></div><div className="form-group"><label htmlFor="new-password">Password</label><input id="new-password" type="text" className="input-field" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-user-role">Role</label><select id="new-user-role" className="select-field" value={newUserRole} onChange={e => setNewUserRole(e.target.value as 'admin' | 'cashier')}><option value="cashier">Cashier</option><option value="admin">Admin</option></select></div><div className="form-group"><label htmlFor="new-user-shop">Shop</label><select id="new-user-shop" className="select-field" value={newUserShopId} onChange={e => setNewUserShopId(Number(e.target.value))} required>{shops.map(shop => (<option key={shop.id} value={shop.id}>{shop.name}</option>))}</select></div><button type="submit" className="action-button-primary">Add User</button></form><div className="user-list-container"><table className="inventory-table"><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Shop</th><th>Actions</th></tr></thead><tbody>{users.filter(u => u.role !== 'super_admin').map(user => (<tr key={user.username}><td data-label="Username">{user.username}</td><td data-label="Email">{user.email || 'N/A'}</td><td data-label="Role">{user.role}</td><td data-label="Shop">{shops.find(s => s.id === user.shopId)?.name || 'N/A'}</td><td data-label="Actions"><button className="action-button-secondary" onClick={() => handleResetPasswordClick(user.username)}>Reset Password</button></td></tr>))}</tbody></table></div></div></div></div>);
 };
 
 // --- ADMIN DASHBOARD PAGE ---
@@ -1956,9 +1971,9 @@ const OrderManagementPage: React.FC<OrderManagementPageProps> = ({ purchaseOrder
 };
 
 
-// --- LOGIN PAGE COMPONENT ---
-type LoginPageProps = { onLogin: (user: User) => void; };
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+// --- AUTHENTICATION PAGE COMPONENTS ---
+type LoginPageProps = { onLogin: (user: User) => void; onNavigateToForgotPassword: () => void; };
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToForgotPassword }) => {
     const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [isLoggingIn, setIsLoggingIn] = useState(false);
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault(); setError(''); setIsLoggingIn(true);
@@ -1967,7 +1982,42 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             sessionStorage.setItem('authToken', token); onLogin(user);
         } catch (err) { setError(err instanceof Error ? err.message : 'Invalid credentials'); setIsLoggingIn(false); }
     };
-    return (<div className="login-container"><form onSubmit={handleSubmit} className="login-form"><h2>BillEase POS Login</h2>{error && <p className="login-error">{error}</p>}<div className="form-group"><label htmlFor="username">Username</label><input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} /></div><div className="form-group"><label htmlFor="password">Password</label><input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} /></div><button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>{isLoggingIn ? 'Logging in...' : 'Login'}</button><div className="login-info"><p>Hint: admin/admin or manager1/password</p></div></form></div>);
+    return (<div className="login-container"><form onSubmit={handleSubmit} className="login-form"><h2>BillEase POS Login</h2>{error && <p className="login-error">{error}</p>}<div className="form-group"><label htmlFor="username">Username</label><input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} /></div><div className="form-group"><label htmlFor="password">Password</label><input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} /></div><button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>{isLoggingIn ? 'Logging in...' : 'Login'}</button><div className="login-footer"><a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a><div className="login-info"><p>Hint: superadmin/password, admin1/password, cashier1/password</p></div></div></form></div>);
+};
+
+type ForgotPasswordPageProps = { onForgotPasswordRequest: (usernameOrEmail: string) => Promise<void>; onNavigateToLogin: () => void; };
+const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onForgotPasswordRequest, onNavigateToLogin }) => {
+    const [usernameOrEmail, setUsernameOrEmail] = useState(''); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [isSubmitting, setIsSubmitting] = useState(false);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault(); setError(''); setMessage(''); setIsSubmitting(true);
+        try {
+            await onForgotPasswordRequest(usernameOrEmail);
+            setMessage("Password reset process initiated. Check your console/alerts for the next step.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "An unknown error occurred.");
+            setIsSubmitting(false);
+        }
+    };
+    return (<div className="login-container"><form onSubmit={handleSubmit} className="login-form"><h2>Forgot Password</h2>{error && <p className="login-error">{error}</p>}{message && <p className="success-message">{message}</p>}<div className="form-group"><label htmlFor="usernameOrEmail">Username or Email</label><input id="usernameOrEmail" type="text" className="input-field" value={usernameOrEmail} onChange={e => setUsernameOrEmail(e.target.value)} required disabled={isSubmitting} /></div><button type="submit" className="action-button-primary login-button" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send Reset Link'}</button><div className="login-footer"><a href="#" onClick={onNavigateToLogin} className="forgot-password-link">Back to Login</a></div></form></div>);
+};
+
+type ResetPasswordPageProps = { token: string | null; onResetPassword: (token: string, newPass: string) => Promise<void>; onNavigateToLogin: () => void; };
+const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ token, onResetPassword, onNavigateToLogin }) => {
+    const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [error, setError] = useState(''); const [isSubmitting, setIsSubmitting] = useState(false);
+    useEffect(() => { if (!token) setError("No reset token provided. Please start the process again."); }, [token]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (password !== confirmPassword) { setError("Passwords do not match."); return; }
+        if (!token) { setError("Missing token."); return; }
+        setError(''); setIsSubmitting(true);
+        try {
+            await onResetPassword(token, password);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to reset password.");
+            setIsSubmitting(false);
+        }
+    };
+    return (<div className="login-container"><form onSubmit={handleSubmit} className="login-form"><h2>Reset Password</h2>{error && <p className="login-error">{error}</p>}<p style={{color: 'var(--text-secondary)', textAlign: 'center'}}>Enter a new password for your account.</p><div className="form-group"><label htmlFor="new-password">New Password</label><input id="new-password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isSubmitting || !token} /></div><div className="form-group"><label htmlFor="confirm-password">Confirm New Password</label><input id="confirm-password" type="password" className="input-field" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required disabled={isSubmitting || !token} /></div><button type="submit" className="action-button-primary login-button" disabled={isSubmitting || !token}>{isSubmitting ? 'Resetting...' : 'Reset Password'}</button><div className="login-footer"><a href="#" onClick={onNavigateToLogin} className="forgot-password-link">Back to Login</a></div></form></div>);
 };
 
 
@@ -1999,6 +2049,9 @@ const App = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
     const [viewMode, setViewMode] = useState<ViewMode>('desktop');
     const syncIntervalRef = useRef<number | null>(null);
+
+    const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
+    const [tokenForReset, setTokenForReset] = useState<string | null>(null);
 
     const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, saleItems: [], amountPaid: '', returnReason: '', }), []);
     const [saleSessions, setSaleSessions] = useState<SaleSession[]>([ {...initialSaleSession}, {...initialSaleSession}, {...initialSaleSession} ]);
@@ -2081,10 +2134,10 @@ const App = () => {
         }
     }, [currentUser, loadDataFromDb, processSyncQueue]);
 
-    const currentShopContextId = useMemo(() => currentUser?.role === 'admin' ? selectedShopId : (currentUser?.shopId || null), [currentUser, selectedShopId]);
+    const currentShopContextId = useMemo(() => currentUser?.role === 'super_admin' ? selectedShopId : (currentUser?.shopId || null), [currentUser, selectedShopId]);
     
     const visibleProducts = useMemo(() => {
-        if (currentUser?.role === 'admin') {
+        if (currentUser?.role === 'super_admin') {
             if (!selectedShopId) return allProducts;
             return allProducts.filter(p => p.shopId === selectedShopId);
         }
@@ -2092,7 +2145,7 @@ const App = () => {
     }, [allProducts, currentUser, selectedShopId]);
 
     const visibleSalesHistory = useMemo(() => {
-        if (currentUser?.role === 'admin') {
+        if (currentUser?.role === 'super_admin') {
             if (!selectedShopId) return allSalesHistory;
             return allSalesHistory.filter(s => s.shopId === selectedShopId);
         }
@@ -2100,7 +2153,7 @@ const App = () => {
     }, [allSalesHistory, currentUser, selectedShopId]);
 
     const visibleExpenses = useMemo(() => {
-        if (currentUser?.role === 'admin') {
+        if (currentUser?.role === 'super_admin') {
             if (!selectedShopId) return expenses;
             return expenses.filter(e => e.shopId === selectedShopId);
         }
@@ -2108,7 +2161,7 @@ const App = () => {
     }, [expenses, currentUser, selectedShopId]);
     
     const visiblePurchaseOrders = useMemo(() => {
-        if (currentUser?.role === 'admin') {
+        if (currentUser?.role === 'super_admin') {
             if (!selectedShopId) return purchaseOrders;
             return purchaseOrders.filter(o => o.shopId === selectedShopId);
         }
@@ -2116,7 +2169,7 @@ const App = () => {
     }, [purchaseOrders, currentUser, selectedShopId]);
     
     const visibleSalesOrders = useMemo(() => {
-        if (currentUser?.role === 'admin') {
+        if (currentUser?.role === 'super_admin') {
             if (!selectedShopId) return salesOrders;
             return salesOrders.filter(o => o.shopId === selectedShopId);
         }
@@ -2132,7 +2185,7 @@ const App = () => {
         setIsLoading(true); setAppError(null);
         try {
             const [shopsData, customersData, usersData, productsData, salesData] = await Promise.all([
-                api.getShops(), api.getCustomers(), user.role === 'admin' ? api.getUsers() : Promise.resolve([]),
+                api.getShops(), api.getCustomers(), user.role === 'super_admin' ? api.getUsers() : Promise.resolve([]),
                 api.getProducts(), api.getSales(),
             ]);
             await Promise.all([
@@ -2146,13 +2199,15 @@ const App = () => {
                 dbManager.bulkPut('sales', (salesData || []).map(s => ({ ...s, date: new Date(s.date) }))),
             ]);
             setCurrentUser(user);
-            setCurrentPage(user.role === 'admin' ? 'Admin Dashboard' : 'New Sale');
+            if (user.role === 'super_admin') setCurrentPage('Admin Dashboard');
+            else if (user.role === 'admin') setCurrentPage('Reports');
+            else setCurrentPage('New Sale');
         } catch (err) {
             setAppError(err instanceof Error ? err.message : "Failed to sync initial data.");
             setIsLoading(false);
         }
     };
-    const handleLogout = () => { sessionStorage.removeItem('authToken'); sessionStorage.removeItem('currentUser'); setCurrentUser(null); setAllProducts([]); setCustomers([]); setAllSalesHistory([]); setUsers([]); setShops([]); setSelectedShopId(null); };
+    const handleLogout = () => { sessionStorage.removeItem('authToken'); sessionStorage.removeItem('currentUser'); setCurrentUser(null); setAllProducts([]); setCustomers([]); setAllSalesHistory([]); setUsers([]); setShops([]); setSelectedShopId(null); setAuthView('login'); };
     const handleAddProduct = async (newProductData: Omit<Product, 'id' | 'shopId'>): Promise<Product> => {
         if (!currentShopContextId) {
             throw new Error("Admins must select a shop from the header before adding a product.");
@@ -2377,8 +2432,59 @@ const App = () => {
         setCurrentPage(shopId !== 0 ? 'Reports' : 'Admin Dashboard');
     };
 
+    const handleForgotPasswordRequest = async (usernameOrEmail: string) => {
+        const allUsers = await dbManager.getAll<User>('users');
+        const user = allUsers.find(u => u.username === usernameOrEmail || u.email === usernameOrEmail);
+        if (!user) throw new Error("User not found.");
+        const token = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        const expiry = Date.now() + 15 * 60 * 1000; // 15 minutes
+        const updatedUser = { ...user, resetToken: token, resetTokenExpiry: expiry };
+        await dbManager.put('users', updatedUser);
+        console.log(`Password reset link for ${user.username}: /reset-password?token=${token}`);
+        alert(`A password reset link has been "sent".\nFor this demo, your token is: ${token}\nYou will now be taken to the reset page.`);
+        setTokenForReset(token);
+        setAuthView('reset');
+    };
+
+    const handleResetPassword = async (token: string, newPassword: string) => {
+        if (!token) throw new Error("Invalid or missing token.");
+        const allUsers = await dbManager.getAll<User>('users');
+        const user = allUsers.find(u => u.resetToken === token);
+        if (!user) throw new Error("Invalid token.");
+        if (user.resetTokenExpiry && user.resetTokenExpiry < Date.now()) {
+            throw new Error("Token has expired.");
+        }
+        const updatedUser: User = { ...user, password: newPassword, resetToken: undefined, resetTokenExpiry: undefined };
+        await dbManager.put('users', updatedUser);
+        alert("Password has been reset successfully. Please log in.");
+        setTokenForReset(null);
+        setAuthView('login');
+    };
+    
+    const handleAdminPasswordReset = async (username: string, newPassword: string) => {
+        const user = await dbManager.get<User>('users', username);
+        if (!user) throw new Error("User not found.");
+        const updatedUser = { ...user, password: newPassword };
+        await dbManager.put('users', updatedUser);
+        setUsers(prev => prev.map(u => u.username === username ? updatedUser : u));
+        await dbManager.put('outbox', { type: 'updateUserPassword', payload: { username, password: newPassword } });
+        processSyncQueue();
+        alert(`Password for ${username} has been reset.`);
+    };
+
+
     if (isLoading) return <div className={`theme-${theme} loading-container`}><h2>Loading BillEase POS...</h2></div>;
-    if (!currentUser) return <div className={`theme-${theme}`} style={{height: '100%'}}><LoginPage onLogin={handleLogin} /></div>;
+    
+    if (!currentUser) {
+        return (
+            <div className={`theme-${theme}`} style={{height: '100%'}}>
+                {authView === 'login' && <LoginPage onLogin={handleLogin} onNavigateToForgotPassword={() => setAuthView('forgot')} />}
+                {authView === 'forgot' && <ForgotPasswordPage onForgotPasswordRequest={handleForgotPasswordRequest} onNavigateToLogin={() => setAuthView('login')} />}
+                {authView === 'reset' && <ResetPasswordPage token={tokenForReset} onResetPassword={handleResetPassword} onNavigateToLogin={() => { setTokenForReset(null); setAuthView('login'); }} />}
+            </div>
+        );
+    }
+    
     if (appError) return <div className={`theme-${theme} error-container`}><h2>Error</h2><p>{appError}</p><button onClick={handleLogout}>Logout</button></div>;
 
     const renderPage = () => {
@@ -2394,8 +2500,8 @@ const App = () => {
             case 'Expenses': return <ExpensesPage expenses={visibleExpenses} onAddExpense={handleAddExpense} shops={shops} />;
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
-            case 'Shop Management': return currentUser.role === 'admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} /> : <p>Access Denied</p>;
-            default: return currentUser.role === 'admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
+            case 'Manage Users': return currentUser.role === 'super_admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} onAdminPasswordReset={handleAdminPasswordReset} /> : <p>Access Denied</p>;
+            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
         }
     };
     return (<div className={viewMode === 'mobile' ? 'view-mode-mobile' : ''}><AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={handleShopChange} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} /><main className="app-main">{renderPage()}</main></div>);
