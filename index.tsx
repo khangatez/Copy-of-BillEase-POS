@@ -851,6 +851,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         if (!currentShopId) { alert("Cannot create a sale without a selected shop."); return; }
         
         const finalAmountPaid = parseFloat(amountPaid) || 0;
+        const paymentDetailsEntered = amountPaid.trim() !== '' && finalAmountPaid !== totalAmountDue;
         
         onPreviewInvoice({ 
             shopId: currentShopId, 
@@ -868,7 +869,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             amountPaid: finalAmountPaid, 
             totalBalanceDue: newBalanceDue, 
             returnReason,
-            paymentDetailsEntered: amountPaid.trim() !== ''
+            paymentDetailsEntered
         });
     };
 
