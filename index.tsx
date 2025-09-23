@@ -905,7 +905,7 @@ type ConfirmTransactionModalProps = {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: () => void;
-    isConfirming: boolean;
+    isConfirming?: boolean;
     summary: {
         previousBalance: number;
         currentBillTotal: number;
@@ -915,7 +915,7 @@ type ConfirmTransactionModalProps = {
     };
 };
 
-const ConfirmTransactionModal: React.FC<ConfirmTransactionModalProps> = ({ isOpen, onClose, onConfirm, isConfirming, summary }) => {
+const ConfirmTransactionModal: React.FC<ConfirmTransactionModalProps> = ({ isOpen, onClose, onConfirm, isConfirming = false, summary }) => {
     if (!isOpen) return null;
 
     return (
@@ -950,7 +950,7 @@ type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
     salesHistory: SaleData[];
-    onFinalizeSale: (saleData: SaleData) => Promise<SaleData>;
+    onPreviewInvoice: (saleData: SaleData) => void;
     onViewInvoice: (sale: SaleData) => void;
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
     onUpdateProduct: (updatedProduct: Product) => void;
@@ -962,7 +962,7 @@ type NewSalePageProps = {
     currentShopId: number | null;
 };
 
-const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onFinalizeSale, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId }) => {
+const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId }) => {
     const { customerName, customerMobile, priceMode, languageMode, taxPercent, discount, saleItems, amountPaid } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
@@ -974,7 +974,6 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [isConfirmModalOpen, setConfirmModalOpen] = useState(false);
-    const [isConfirming, setIsConfirming] = useState(false);
 
     const mobileInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1185,28 +1184,42 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         }
     }, [totalAmountDue, onSessionUpdate]);
 
-    const handleConfirmAndShowReceipt = async () => {
-        if (!currentShopId) { alert("Cannot create a sale without a selected shop."); return; }
-        setIsConfirming(true);
-        try {
-            const finalAmountPaid = parseFloat(amountPaid) || 0;
-            const saleToFinalize: SaleData = {
-                id: `sale-${Date.now()}`,
-                date: new Date(),
-                shopId: currentShopId, customerName, customerMobile, saleItems, 
-                grossTotal, returnTotal, subtotal, discount, taxAmount, taxPercent, 
-                grandTotal, languageMode, previousBalance, amountPaid: finalAmountPaid, 
-                totalBalanceDue: newBalanceDue, returnReason: sessionData.returnReason, paymentDetailsEntered: true
-            };
-            
-            const finalizedSale = await onFinalizeSale(saleToFinalize);
-            setConfirmModalOpen(false);
-            onViewInvoice(finalizedSale);
+    const handleNavigateToPreview = () => {
+        if (!currentShopId) {
+            alert("Cannot create a sale without a selected shop.");
+            return;
+        }
+        const finalAmountPaid = parseFloat(amountPaid) || 0;
+        const saleToPreview: SaleData = {
+            id: `sale-${Date.now()}-${activeBillIndex}`, // Temp ID
+            date: new Date(),
+            shopId: currentShopId,
+            customerName,
+            customerMobile,
+            saleItems,
+            grossTotal,
+            returnTotal,
+            subtotal,
+            discount,
+            taxAmount,
+            taxPercent,
+            grandTotal,
+            languageMode,
+            previousBalance,
+            amountPaid: finalAmountPaid,
+            totalBalanceDue: newBalanceDue,
+            returnReason: sessionData.returnReason,
+            paymentDetailsEntered: true,
+        };
+        setConfirmModalOpen(false);
+        onPreviewInvoice(saleToPreview);
+    };
 
-        } catch (error) {
-            alert(`Error finalizing sale: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsConfirming(false);
+    const handlePreviewInvoiceClick = () => {
+        if (previousBalance !== 0) {
+            setConfirmModalOpen(true);
+        } else {
+            handleNavigateToPreview();
         }
     };
 
@@ -1216,8 +1229,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             <ConfirmTransactionModal
                 isOpen={isConfirmModalOpen}
                 onClose={() => setConfirmModalOpen(false)}
-                onConfirm={handleConfirmAndShowReceipt}
-                isConfirming={isConfirming}
+                onConfirm={handleNavigateToPreview}
                 summary={{
                     previousBalance,
                     currentBillTotal: subtotal,
@@ -1321,7 +1333,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                 <div className="footer-item"><label htmlFor="tax-percent">Tax (%)</label><input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} /></div>
                 <div className="footer-item"><span className="label">Previous Balance (₹)</span><span className="value">{formatNumberForInvoice(previousBalance)}</span></div>
                 <div className="footer-item"><label htmlFor="amount-paid-input">Amount Paid (₹)</label><input id="amount-paid-input" type="number" className="input-field" value={amountPaid} onChange={e => onSessionUpdate({ amountPaid: e.target.value })} /></div>
-                <div className="footer-item preview-btn"><button className="finalize-button" onClick={() => setConfirmModalOpen(true)}>Preview Invoice</button></div>
+                <div className="footer-item preview-btn"><button className="finalize-button" onClick={handlePreviewInvoiceClick}>Preview Invoice</button></div>
                 <div className="footer-item grand-total"><span className="label">Grand Total:</span><span className="value">{formatCurrency(grandTotal)}</span></div>
             </footer>
         </div>
@@ -1531,6 +1543,7 @@ type InvoicePageProps = {
     settings: AppSettings;
     onSettingsChange: (settings: AppSettings) => void;
     isFinalized: boolean;
+    onCompleteSale: () => Promise<void>;
     margins: { top: number; right: number; bottom: number; left: number };
     onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
     offsets: { header: number; footer: number };
@@ -1538,7 +1551,7 @@ type InvoicePageProps = {
     fontStyle: InvoiceFontStyle;
     onFontStyleChange: (style: InvoiceFontStyle) => void;
 };
-const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, onCompleteSale, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange }) => {
     const [paperSize, setPaperSize] = useState('4inch');
     const [fontSize, setFontSize] = useState('medium');
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
@@ -1546,6 +1559,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
     const [isTitleEditing, setIsTitleEditing] = useState(false);
     const [isFooterEditing, setIsFooterEditing] = useState(false);
+    const [isCompleting, setIsCompleting] = useState(false);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const footerInputRef = useRef<HTMLInputElement>(null);
     const { invoiceFooter } = settings;
@@ -1566,6 +1580,15 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
         const canvas = await html2canvas(input, { scale: 2 }); const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width, canvas.height] });
         pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height); pdf.save(`invoice-${saleData.id}.pdf`);
+    };
+    const handleCompleteClick = async () => {
+        if (isFinalized) return;
+        setIsCompleting(true);
+        try {
+            await onCompleteSale();
+        } finally {
+            setIsCompleting(false);
+        }
     };
     const handleSendWhatsApp = () => {
         if (!whatsAppNumber) { alert('Please enter a mobile number.'); return; }
@@ -1614,10 +1637,18 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                 <div className="invoice-main-actions"><button onClick={handlePrint} className="action-button-primary">Print</button><button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button><div className="whatsapp-group"><input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} /><button onClick={handleSendWhatsApp} className="action-button-primary">Send</button></div></div>
                 <div className="invoice-controls"><div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div><div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div><div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div><div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div><div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div></div>
                 <div className="finalize-actions-group">
-                    <button className="finalize-button" disabled={true}>
-                        {isFinalized ? 'Sale Recorded ✓' : 'Finalizing...'}
+                    {isFinalized ? (
+                        <button className="finalize-button" disabled>
+                            Sale Recorded ✓
+                        </button>
+                    ) : (
+                        <button className="finalize-button" onClick={handleCompleteClick} disabled={isCompleting}>
+                            {isCompleting ? 'Completing...' : 'Complete Sale'}
+                        </button>
+                    )}
+                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">
+                        {isFinalized ? 'New Sale' : 'Back to Edit Sale'}
                     </button>
-                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">Back to New Sale</button>
                 </div>
             </div>
         </div>
@@ -2800,6 +2831,24 @@ const App = () => {
         }
         setCurrentPage(page);
     };
+
+    const handlePreviewInvoice = (sale: SaleData) => {
+        setPendingSaleData(sale);
+        setIsSaleFinalized(false);
+        setCurrentPage('Invoice');
+    };
+
+    const handleCompleteSale = async () => {
+        if (pendingSaleData && !isSaleFinalized) {
+            try {
+                await handleFinalizeSale(pendingSaleData);
+                setIsSaleFinalized(true);
+            } catch (error) {
+                alert(`Error completing sale: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+    };
+
     const handleViewInvoiceFromReport = (sale: SaleData) => { setPendingSaleData(sale); setIsSaleFinalized(true); setCurrentPage('Invoice'); };
     const handleShopChange = (shopId: number) => {
         setSelectedShopId(shopId === 0 ? null : shopId);
@@ -2864,10 +2913,10 @@ const App = () => {
     const renderPage = () => {
         switch (currentPage) {
             case 'Admin Dashboard': return <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} />;
-            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onFinalizeSale={handleFinalizeSale} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
+            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
             case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
             case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
-            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
+            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
             case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports': return <ReportsPage salesHistory={visibleSalesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
@@ -2875,7 +2924,7 @@ const App = () => {
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
             case 'Manage Users': return currentUser.role === 'super_admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} onAdminPasswordReset={handleAdminPasswordReset} /> : <p>Access Denied</p>;
-            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onFinalizeSale={handleFinalizeSale} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
+            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
         }
     };
     return (<div className={viewMode === 'mobile' ? 'view-mode-mobile' : ''}><AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={handleShopChange} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} /><main className="app-main">{renderPage()}</main></div>);
