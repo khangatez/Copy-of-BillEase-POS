@@ -30,6 +30,41 @@ async function translateToTamil(text: string): Promise<string> {
     }
 }
 
+async function translateBatchToTamil(texts: string[]): Promise<string[]> {
+    if (!texts || texts.length === 0) {
+        return [];
+    }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Translate the following JSON array of English product names into a JSON array of Tamil translations. Maintain the exact same order and array length. Provide only the JSON array as your response, without any markdown formatting (like \`\`\`json). For example, if the input is ["Milk", "Sugar"], the output should be ["பால்", "சர்க்கரை"]. Input: ${JSON.stringify(texts)}`,
+            config: {
+                temperature: 0.1,
+                responseMimeType: "application/json",
+            }
+        });
+
+        let jsonString = response.text.trim();
+        if (jsonString.startsWith('```json')) {
+            jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+        } else if (jsonString.startsWith('```')) {
+             jsonString = jsonString.substring(3, jsonString.length - 3).trim();
+        }
+
+        const translatedTexts = JSON.parse(jsonString);
+
+        if (Array.isArray(translatedTexts) && translatedTexts.length === texts.length) {
+            return translatedTexts.map(t => String(t));
+        } else {
+            console.error("Batch translation response mismatch:", { expected: texts.length, received: translatedTexts.length });
+            return texts.map(() => ''); // Fallback
+        }
+    } catch (error) {
+        console.error("Error in batch translating to Tamil:", error);
+        return texts.map(() => ''); // Fallback on error
+    }
+}
+
 
 // --- TYPES ---
 interface Product {
@@ -378,6 +413,7 @@ const formatNumberForInvoice = (amount: number) => (amount || 0).toFixed(2);
 const formatPriceForInvoice = (amount: number) => (amount || 0).toFixed(1);
 const formatQuantityForInvoice = (quantity: number) => (quantity || 0).toFixed(1);
 const LOW_STOCK_THRESHOLD = 10;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- SYNC STATUS INDICATOR ---
 type SyncStatus = 'offline' | 'syncing' | 'synced' | 'error';
@@ -661,18 +697,36 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                         throw new Error("No valid product rows found in the file.");
                     }
 
-                    const translatedProducts = [];
-                    for (let i = 0; i < productsToImport.length; i++) {
-                        const p = productsToImport[i];
-                        setStatusMessage(`Translating "${p.name}" (${i + 1}/${productsToImport.length})`);
-                        if (!p.nameTamil) {
-                            const tamilName = await translateToTamil(p.name);
-                            translatedProducts.push({ ...p, nameTamil: tamilName });
-                        } else {
-                            translatedProducts.push(p);
+                    // Batch translation
+                    setStatusMessage(`Preparing to translate ${productsToImport.length} products...`);
+                    const productsRequiringTranslation = productsToImport.filter(p => !p.nameTamil && p.name);
+                    const namesToTranslate = productsRequiringTranslation.map(p => p.name);
+                    const translationMap = new Map<string, string>();
+
+                    if (namesToTranslate.length > 0) {
+                        setStatusMessage(`Translating ${namesToTranslate.length} product names in a single batch...`);
+                        try {
+                            const translatedNames = await translateBatchToTamil(namesToTranslate);
+                            namesToTranslate.forEach((name, index) => {
+                                if (translatedNames[index]) {
+                                    translationMap.set(name, translatedNames[index]);
+                                }
+                            });
+                        } catch (batchError) {
+                            console.error("Batch translation failed:", batchError);
+                            setStatusMessage("Warning: Automatic translation failed. Please review Tamil names.");
+                            await sleep(2000); // Show warning for a moment
                         }
                     }
-                    setParsedProducts(translatedProducts);
+
+                    const finalProducts = productsToImport.map(p => {
+                        if (translationMap.has(p.name)) {
+                            return { ...p, nameTamil: translationMap.get(p.name)! };
+                        }
+                        return p;
+                    });
+                    
+                    setParsedProducts(finalProducts);
                     setStatusMessage('');
 
                 } catch (err) {
