@@ -14,7 +14,8 @@
     "jspdf": "2.5.1",
     "html2canvas": "1.4.1",
     "pdfjs-dist": "3.11.174",
-    "html5-qrcode": "2.3.8"
+    "html5-qrcode": "2.3.8",
+    "@google/genai": "^1.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

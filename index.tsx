@@ -4,8 +4,31 @@ import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { GoogleGenAI } from "@google/genai";
 
 declare var XLSX: any;
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+async function translateToTamil(text: string): Promise<string> {
+    if (!text || !text.trim()) {
+        return '';
+    }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Translate the following English product name to Tamil. Provide only the Tamil translation, without any English characters or explanations. For example, if the input is "Milk", the output should be "பால்". Input: "${text}"`,
+            config: {
+                temperature: 0.1,
+                thinkingConfig: { thinkingBudget: 0 }
+            }
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error translating to Tamil:", error);
+        return ''; // Return empty string on error, so UI doesn't break
+    }
+}
 
 
 // --- TYPES ---
@@ -469,6 +492,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
     const [newProductCategory, setNewProductCategory] = useState('');
     const [newProductSubcategory, setNewProductSubcategory] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const [isTranslating, setIsTranslating] = useState(false);
 
     const nameTamilRef = useRef<HTMLInputElement>(null);
     const b2bRef = useRef<HTMLInputElement>(null);
@@ -491,8 +515,25 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
             setNewProductCategory('');
             setNewProductSubcategory('');
             setIsAdding(false);
+            setIsTranslating(false);
         }
     }, [isOpen, initialName]);
+
+    useEffect(() => {
+        const translationTimeout = setTimeout(async () => {
+            if (newProductName.trim() && isOpen) {
+                setIsTranslating(true);
+                try {
+                    const tamilName = await translateToTamil(newProductName);
+                    setNewProductNameTamil(tamilName);
+                } finally {
+                    setIsTranslating(false);
+                }
+            }
+        }, 800);
+
+        return () => clearTimeout(translationTimeout);
+    }, [newProductName, isOpen]);
 
     if (!isOpen) return null;
 
@@ -522,7 +563,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                 <div className="modal-body">
                     <form id={formId} onSubmit={handleAddProduct} className="add-product-form">
                         <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value)} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus/></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil)</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil) {isTranslating && '(Translating...)'}</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} disabled={isTranslating} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2b">B2B Price</label><input ref={b2bRef} id="modal-new-product-b2b" type="number" step="0.01" className="input-field" value={newProductB2B} onChange={e => setNewProductB2B(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, b2cRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2c">B2C Price</label><input ref={b2cRef} id="modal-new-product-b2c" type="number" step="0.01" className="input-field" value={newProductB2C} onChange={e => setNewProductB2C(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, stockRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-stock">Initial Stock</label><input ref={stockRef} id="modal-new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, categoryRef)} /></div>
@@ -550,17 +591,15 @@ type ImportProductsModalProps = {
 const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClose, onBulkAdd }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [parsedProducts, setParsedProducts] = useState<Omit<Product, 'id' | 'shopId'>[]>([]);
-    const [isParsing, setIsParsing] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
-    const [error, setError] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
 
     useEffect(() => {
         if (isOpen) {
             setSelectedFile(null);
             setParsedProducts([]);
-            setIsParsing(false);
-            setIsImporting(false);
-            setError('');
+            setIsProcessing(false);
+            setStatusMessage('');
         }
     }, [isOpen]);
 
@@ -571,14 +610,16 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
         if (file) {
             setSelectedFile(file);
             setParsedProducts([]);
-            setError('');
-            setIsParsing(true);
+            setStatusMessage('');
+            setIsProcessing(true);
+            setStatusMessage('Reading file...');
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 try {
                     const data = event.target?.result;
                     if (!data) throw new Error("Could not read file data.");
                     
+                    setStatusMessage('Parsing Excel data...');
                     const workbook = XLSX.read(data, { type: 'array' });
                     const sheetName = workbook.SheetNames[0];
                     if (!sheetName) throw new Error("No sheets found in the Excel file.");
@@ -620,17 +661,31 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                         throw new Error("No valid product rows found in the file.");
                     }
 
-                    setParsedProducts(productsToImport);
+                    const translatedProducts = [];
+                    for (let i = 0; i < productsToImport.length; i++) {
+                        const p = productsToImport[i];
+                        setStatusMessage(`Translating "${p.name}" (${i + 1}/${productsToImport.length})`);
+                        if (!p.nameTamil) {
+                            const tamilName = await translateToTamil(p.name);
+                            translatedProducts.push({ ...p, nameTamil: tamilName });
+                        } else {
+                            translatedProducts.push(p);
+                        }
+                    }
+                    setParsedProducts(translatedProducts);
+                    setStatusMessage('');
+
                 } catch (err) {
-                    setError(err instanceof Error ? `Error parsing file: ${err.message}` : 'Failed to parse Excel file.');
+                    setStatusMessage(err instanceof Error ? `Error parsing file: ${err.message}` : 'Failed to parse Excel file.');
                     setSelectedFile(null);
+                    setParsedProducts([]);
                 } finally {
-                    setIsParsing(false);
+                    setIsProcessing(false);
                 }
             };
             reader.onerror = () => {
-                 setError("Failed to read the file.");
-                 setIsParsing(false);
+                 setStatusMessage("Failed to read the file.");
+                 setIsProcessing(false);
             };
             reader.readAsArrayBuffer(file);
         }
@@ -639,18 +694,18 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
 
     const handleImport = async () => {
         if (parsedProducts.length === 0) {
-            setError('No products to import. Please upload and preview a valid file first.');
+            setStatusMessage('No products to import. Please upload and preview a valid file first.');
             return;
         }
-        setIsImporting(true);
-        setError('');
+        setIsProcessing(true);
+        setStatusMessage('');
         try {
             await onBulkAdd(parsedProducts);
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred during import.');
+            setStatusMessage(err instanceof Error ? err.message : 'An unknown error occurred during import.');
         } finally {
-            setIsImporting(false);
+            setIsProcessing(false);
         }
     };
 
@@ -667,7 +722,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                         <p>The importer will look for the following column headers (case-insensitive):</p>
                         <code>English Description, Tamil Description, B2B Price, B2C Price</code>
                     </div>
-                    {error && <p className="login-error">{error}</p>}
+                    {statusMessage && <p className="login-error">{statusMessage}</p>}
                     
                     <div className="file-upload-container">
                         <input
@@ -675,13 +730,12 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                             id="excel-file-input"
                             accept=".xlsx, .xls"
                             onChange={handleFileChange}
-                            disabled={isParsing || isImporting}
+                            disabled={isProcessing}
                             style={{ display: 'none' }}
                         />
                         <label htmlFor="excel-file-input" className="action-button-secondary">
                             {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Excel File'}
                         </label>
-                        {isParsing && <p>Parsing file, please wait...</p>}
                     </div>
 
                     {parsedProducts.length > 0 && (
@@ -712,9 +766,9 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                     )}
                 </div>
                 <div className="modal-footer">
-                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isImporting}>Cancel</button>
-                    <button className="action-button-primary" onClick={handleImport} disabled={isImporting || isParsing || parsedProducts.length === 0}>
-                        {isImporting ? 'Importing...' : `Import ${parsedProducts.length} Products`}
+                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isProcessing}>Cancel</button>
+                    <button className="action-button-primary" onClick={handleImport} disabled={isProcessing || parsedProducts.length === 0}>
+                        {isProcessing ? 'Processing...' : `Import ${parsedProducts.length} Products`}
                     </button>
                 </div>
             </div>
@@ -947,9 +1001,11 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             return;
         }
 
+        const tamilName = await translateToTamil(name);
+
         const newProductData: Omit<Product, 'id' | 'shopId'> = {
             name: name,
-            nameTamil: '',
+            nameTamil: tamilName,
             b2bPrice: 0,
             b2cPrice: 0,
             stock: 0,
