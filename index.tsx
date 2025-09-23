@@ -5,6 +5,8 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
+declare var XLSX: any;
+
 
 // --- TYPES ---
 interface Product {
@@ -44,6 +46,7 @@ interface SaleData {
     grossTotal: number;
     returnTotal: number;
     subtotal: number; // Net Total
+    discount: number;
     taxAmount: number;
     taxPercent: number;
     grandTotal: number; // Net Total + Tax
@@ -93,9 +96,11 @@ interface AppSettings {
 interface SaleSession {
     customerName: string;
     customerMobile: string;
+
     priceMode: 'B2C' | 'B2B';
     languageMode: 'English' | 'Tamil';
     taxPercent: number;
+    discount: number;
     saleItems: SaleItem[];
     amountPaid: string;
     returnReason?: string;
@@ -148,11 +153,12 @@ const MOCK_PRODUCTS: Product[] = [
     { id: 2, shopId: 1, name: 'Milk', nameTamil: 'பால்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222' },
     { id: 3, shopId: 2, name: 'Bread', nameTamil: 'ரொட்டி', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333' },
     { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444' },
+    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃபிரை பேன் பிளாஸ்டிக் கைப்பிடி', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555' },
 ];
 
 const MOCK_SALES: SaleData[] = [
-    { id: 'sale-1', shopId: 1, date: new Date(new Date().setDate(new Date().getDate() - 1)), customerName: 'Alice', customerMobile: '111', saleItems: [{ productId: 1, name: 'Apple', quantity: 5, price: 0.5, isReturn: false }], grossTotal: 2.5, returnTotal: 0, subtotal: 2.5, taxAmount: 0, taxPercent: 0, grandTotal: 2.5, languageMode: 'English', previousBalance: 0, amountPaid: 2.5, totalBalanceDue: 0 },
-    { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, totalBalanceDue: 0 },
+    { id: 'sale-1', shopId: 1, date: new Date(new Date().setDate(new Date().getDate() - 1)), customerName: 'Alice', customerMobile: '111', saleItems: [{ productId: 1, name: 'Apple', quantity: 5, price: 0.5, isReturn: false }], grossTotal: 2.5, returnTotal: 0, subtotal: 2.5, discount: 0, taxAmount: 0, taxPercent: 0, grandTotal: 2.5, languageMode: 'English', previousBalance: 0, amountPaid: 2.5, totalBalanceDue: 0 },
+    { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, discount: 0, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, totalBalanceDue: 0 },
 ];
 
 // --- IndexedDB Manager ---
@@ -230,6 +236,17 @@ class IndexedDBManager {
             request.onerror = () => reject(request.error);
         });
     }
+    
+    public async bulkDelete(storeName: string, keys: IDBValidKey[]): Promise<void> {
+        if (!this.db) throw new Error("Database is not open.");
+        const tx = this.db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        keys.forEach(key => store.delete(key));
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
 
     public async clear(storeName: string): Promise<void> {
         return new Promise((resolve, reject) => {
@@ -270,9 +287,29 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     // MOCK RESPONSES
     if (url.startsWith('/auth/login')) {
         const body = JSON.parse(options.body as string);
-        if (body.username === 'superadmin' && body.password === 'password') return { token: 'fake-superadmin-token', user: { username: 'superadmin', role: 'super_admin', email: 'super@admin.com' } };
-        if (body.username === 'admin1' && body.password === 'password') return { token: 'fake-admin1-token', user: { username: 'admin1', role: 'admin', shopId: 1, email: 'admin1@shop.com' } };
-        if (body.username === 'cashier1' && body.password === 'password') return { token: 'fake-cashier1-token', user: { username: 'cashier1', role: 'cashier', shopId: 1, email: 'cashier1@shop.com' } };
+        
+        // In this mock setup, we directly query the local IndexedDB for auth.
+        // In a real application, this logic would reside on a secure server.
+        const user = await dbManager.get<User>('users', body.username);
+
+        if (user && user.password === body.password) {
+            // Strip sensitive data before returning user object
+            const { password, resetToken, resetTokenExpiry, ...userToReturn } = user;
+            return { token: `fake-token-for-${user.username}`, user: userToReturn };
+        }
+        
+        // The superadmin check can remain as a fallback for the very first login
+        // before the user list is populated from the mock API.
+        if (body.username === 'superadmin' && body.password === 'password') {
+            const superAdminUser = { username: 'superadmin', role: 'super_admin' as const, email: 'super@admin.com' };
+            // Ensure superadmin exists in DB for subsequent logins
+            const existing = await dbManager.get<User>('users', 'superadmin');
+            if (!existing) {
+                await dbManager.put('users', { ...superAdminUser, password: 'password' });
+            }
+            return { token: 'fake-superadmin-token', user: superAdminUser };
+        }
+
         throw new Error("Invalid credentials");
     }
     if(url.startsWith('/sync/push')) {
@@ -386,6 +423,9 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
   return (
     <header className="app-header">
       <h1 className="header-title">{appName}</h1>
+      <nav className="header-nav">
+        {menuItems.slice(0, 1).map(item => <button key={item} className="nav-button" onClick={() => onNavigate(item)}>{item}</button>)}
+      </nav>
       <div className="header-user-info">
         <SyncStatusIndicator status={syncStatus} pendingCount={pendingSyncCount} />
         <span className="header-welcome-message">Welcome, {currentUser.username} ({currentUser.role}){currentUser.role !== 'super_admin' && ` @ ${currentShopName}`}</span>
@@ -417,8 +457,9 @@ type AddProductModalProps = {
     isOpen: boolean;
     onClose: () => void;
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
+    initialName?: string;
 };
-const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAddProduct }) => {
+const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAddProduct, initialName }) => {
     const [newProductName, setNewProductName] = useState('');
     const [newProductNameTamil, setNewProductNameTamil] = useState('');
     const [newProductB2B, setNewProductB2B] = useState(0);
@@ -439,6 +480,20 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
     const submitRef = useRef<HTMLButtonElement>(null);
     const formId = "add-product-form";
 
+    useEffect(() => {
+        if (isOpen) {
+            setNewProductName(initialName || '');
+            setNewProductNameTamil('');
+            setNewProductB2B(0);
+            setNewProductB2C(0);
+            setNewProductStock(0);
+            setNewProductBarcode('');
+            setNewProductCategory('');
+            setNewProductSubcategory('');
+            setIsAdding(false);
+        }
+    }, [isOpen, initialName]);
+
     if (!isOpen) return null;
 
     const handleAddProduct = async (e: React.FormEvent) => {
@@ -450,7 +505,6 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
         setIsAdding(true);
         try {
             await onAddProduct({ name: newProductName, nameTamil: newProductNameTamil, b2bPrice: newProductB2B, b2cPrice: newProductB2C, stock: newProductStock, barcode: newProductBarcode, category: newProductCategory, subcategory: newProductSubcategory });
-            setNewProductName(''); setNewProductNameTamil(''); setNewProductB2B(0); setNewProductB2C(0); setNewProductStock(0); setNewProductBarcode(''); setNewProductCategory(''); setNewProductSubcategory('');
             onClose();
         } catch (error) {
             alert(`Error adding product: ${error instanceof Error ? error.message : String(error)}`);
@@ -494,13 +548,17 @@ type ImportProductsModalProps = {
     onBulkAdd: (products: Omit<Product, 'id' | 'shopId'>[]) => Promise<void>;
 };
 const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClose, onBulkAdd }) => {
-    const [csvData, setCsvData] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [parsedProducts, setParsedProducts] = useState<Omit<Product, 'id' | 'shopId'>[]>([]);
+    const [isParsing, setIsParsing] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            setCsvData('');
+            setSelectedFile(null);
+            setParsedProducts([]);
+            setIsParsing(false);
             setIsImporting(false);
             setError('');
         }
@@ -508,37 +566,86 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
 
     if (!isOpen) return null;
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            setParsedProducts([]);
+            setError('');
+            setIsParsing(true);
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = event.target?.result;
+                    if (!data) throw new Error("Could not read file data.");
+                    
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    if (!sheetName) throw new Error("No sheets found in the Excel file.");
+                    
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (json.length === 0) throw new Error("The selected sheet is empty.");
+
+                    const headers = Object.keys(json[0]);
+                    const findHeader = (targetName: string) => headers.find(h => h.trim().toLowerCase() === targetName.toLowerCase());
+
+                    const nameHeader = findHeader("English Description");
+                    const nameTamilHeader = findHeader("Tamil Description");
+                    const b2bHeader = findHeader("B2B Price");
+                    const b2cHeader = findHeader("B2C Price");
+
+                    if (!nameHeader) {
+                        throw new Error("Column 'English Description' not found. Please check the Excel file header.");
+                    }
+
+                    const productsToImport = json.map((row): Omit<Product, 'id' | 'shopId'> | null => {
+                        const name = row[nameHeader];
+                        if (!name || String(name).trim() === '') return null;
+
+                        return {
+                            name: String(name),
+                            nameTamil: nameTamilHeader ? String(row[nameTamilHeader] || '') : '',
+                            b2bPrice: b2bHeader ? parseFloat(row[b2bHeader]) || 0 : 0,
+                            b2cPrice: b2cHeader ? parseFloat(row[b2cHeader]) || 0 : 0,
+                            stock: 0,
+                            barcode: undefined,
+                            category: undefined,
+                            subcategory: undefined,
+                        };
+                    }).filter((p): p is Omit<Product, 'id' | 'shopId'> => p !== null);
+                    
+                    if (productsToImport.length === 0) {
+                        throw new Error("No valid product rows found in the file.");
+                    }
+
+                    setParsedProducts(productsToImport);
+                } catch (err) {
+                    setError(err instanceof Error ? `Error parsing file: ${err.message}` : 'Failed to parse Excel file.');
+                    setSelectedFile(null);
+                } finally {
+                    setIsParsing(false);
+                }
+            };
+            reader.onerror = () => {
+                 setError("Failed to read the file.");
+                 setIsParsing(false);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    };
+
+
     const handleImport = async () => {
-        if (!csvData.trim()) {
-            setError('Please paste data from your spreadsheet.');
+        if (parsedProducts.length === 0) {
+            setError('No products to import. Please upload and preview a valid file first.');
             return;
         }
         setIsImporting(true);
         setError('');
         try {
-            const rows = csvData.trim().split('\n').slice(1); // Skip header row
-            const newProducts: Omit<Product, 'id' | 'shopId'>[] = rows.map((row, index) => {
-                const columns = row.split(',').map(c => c.trim());
-                if (columns.length < 5) {
-                    throw new Error(`Row ${index + 2}: Not enough columns. Expected at least 5.`);
-                }
-                const product: Omit<Product, 'id' | 'shopId'> = {
-                    name: columns[0],
-                    nameTamil: columns[1] || '',
-                    b2bPrice: parseFloat(columns[2]) || 0,
-                    b2cPrice: parseFloat(columns[3]) || 0,
-                    stock: parseInt(columns[4], 10) || 0,
-                    barcode: columns[5] || undefined,
-                    category: columns[6] || undefined,
-                    subcategory: columns[7] || undefined,
-                };
-                if (!product.name) {
-                    throw new Error(`Row ${index + 2}: Product name is required.`);
-                }
-                return product;
-            });
-
-            await onBulkAdd(newProducts);
+            await onBulkAdd(parsedProducts);
             onClose();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred during import.');
@@ -549,31 +656,65 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '800px'}}>
                 <div className="modal-header">
-                    <h3>Import Bulk Products</h3>
+                    <h3>Import Products From Excel</h3>
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <div className="modal-body">
                     <div className="import-instructions">
-                        <p>Copy columns from your Excel or Google Sheet and paste them into the text box below.</p>
-                        <p>Ensure the first row is a header and the columns are in the following order:</p>
-                        <code>Name, Tamil Name, B2B Price, B2C Price, Stock, Barcode (Optional), Category (Optional), Subcategory (Optional)</code>
+                        <p>Upload an Excel file (.xlsx, .xls) with your product data.</p>
+                        <p>The importer will look for the following column headers (case-insensitive):</p>
+                        <code>English Description, Tamil Description, B2B Price, B2C Price</code>
                     </div>
                     {error && <p className="login-error">{error}</p>}
-                    <textarea
-                        className="input-field"
-                        rows={10}
-                        value={csvData}
-                        onChange={e => setCsvData(e.target.value)}
-                        placeholder="Paste your CSV data here..."
-                        disabled={isImporting}
-                    />
+                    
+                    <div className="file-upload-container">
+                        <input
+                            type="file"
+                            id="excel-file-input"
+                            accept=".xlsx, .xls"
+                            onChange={handleFileChange}
+                            disabled={isParsing || isImporting}
+                            style={{ display: 'none' }}
+                        />
+                        <label htmlFor="excel-file-input" className="action-button-secondary">
+                            {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Excel File'}
+                        </label>
+                        {isParsing && <p>Parsing file, please wait...</p>}
+                    </div>
+
+                    {parsedProducts.length > 0 && (
+                        <div className="inventory-list-container" style={{ maxHeight: '30vh', marginTop: 'var(--padding-md)' }}>
+                            <h4>Preview ({parsedProducts.length} products found)</h4>
+                            <table className="inventory-table">
+                                <thead>
+                                    <tr>
+                                        <th>English Description</th>
+                                        <th>Tamil Description</th>
+                                        <th>B2B Price</th>
+                                        <th>B2C Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {parsedProducts.slice(0, 100).map((p, index) => ( // Preview up to 100 rows
+                                        <tr key={index}>
+                                            <td data-label="English Description">{p.name}</td>
+                                            <td data-label="Tamil Description">{p.nameTamil}</td>
+                                            <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
+                                            <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                             {parsedProducts.length > 100 && <p style={{textAlign: 'center', marginTop: 'var(--padding-sm)', color: 'var(--text-secondary)'}}>... and {parsedProducts.length - 100} more rows.</p>}
+                        </div>
+                    )}
                 </div>
                 <div className="modal-footer">
                     <button className="action-button-secondary" type="button" onClick={onClose} disabled={isImporting}>Cancel</button>
-                    <button className="action-button-primary" onClick={handleImport} disabled={isImporting}>
-                        {isImporting ? 'Importing...' : 'Import Products'}
+                    <button className="action-button-primary" onClick={handleImport} disabled={isImporting || isParsing || parsedProducts.length === 0}>
+                        {isImporting ? 'Importing...' : `Import ${parsedProducts.length} Products`}
                     </button>
                 </div>
             </div>
@@ -651,12 +792,57 @@ const CustomerHistoryModal: React.FC<CustomerHistoryModalProps> = ({ isOpen, onC
 };
 
 
+// --- CONFIRM TRANSACTION MODAL ---
+type ConfirmTransactionModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    isConfirming: boolean;
+    summary: {
+        previousBalance: number;
+        currentBillTotal: number;
+        grandTotalDue: number;
+        amountPaid: number;
+        newBalanceRemaining: number;
+    };
+};
+
+const ConfirmTransactionModal: React.FC<ConfirmTransactionModalProps> = ({ isOpen, onClose, onConfirm, isConfirming, summary }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{maxWidth: '500px'}}>
+                <div className="modal-header">
+                    <h3>Confirm Transaction</h3>
+                    <button onClick={onClose} className="close-button">&times;</button>
+                </div>
+                <div className="modal-body">
+                    <div className="confirmation-summary">
+                        <div className="summary-row"><span>Previous Balance:</span><span>{formatCurrency(summary.previousBalance)}</span></div>
+                        <div className="summary-row"><span>Current Bill Total:</span><span>{formatCurrency(summary.currentBillTotal)}</span></div>
+                        <div className="summary-row grand-total"><span>Grand Total Due:</span><span>{formatCurrency(summary.grandTotalDue)}</span></div>
+                        <div className="summary-row"><span>Amount Paid:</span><span>{formatCurrency(summary.amountPaid)}</span></div>
+                        <div className="summary-row new-balance"><span>New Balance Remaining:</span><span>{formatCurrency(summary.newBalanceRemaining)}</span></div>
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isConfirming}>Cancel</button>
+                    <button className="action-button-primary" onClick={onConfirm} disabled={isConfirming}>
+                        {isConfirming ? 'Processing...' : 'OK'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- NEW SALE PAGE COMPONENT ---
 type NewSalePageProps = {
     products: Product[];
     customers: Customer[];
     salesHistory: SaleData[];
-    onPreviewInvoice: (saleData: Omit<SaleData, 'id' | 'date'>) => void;
+    onFinalizeSale: (saleData: SaleData) => Promise<SaleData>;
     onViewInvoice: (sale: SaleData) => void;
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
     onUpdateProduct: (updatedProduct: Product) => void;
@@ -666,12 +852,10 @@ type NewSalePageProps = {
     activeBillIndex: number;
     onBillChange: (index: number) => void;
     currentShopId: number | null;
-    viewMode: ViewMode;
-    onViewModeChange: (mode: ViewMode) => void;
 };
 
-const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, viewMode, onViewModeChange }) => {
-    const { customerName, customerMobile, priceMode, languageMode, taxPercent, saleItems, amountPaid, returnReason } = sessionData;
+const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onFinalizeSale, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId }) => {
+    const { customerName, customerMobile, priceMode, languageMode, taxPercent, discount, saleItems, amountPaid } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [showAddNewSuggestion, setShowAddNewSuggestion] = useState(false);
@@ -679,18 +863,17 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [voiceError, setVoiceError] = useState('');
-    const [voiceSearchHistory, setVoiceSearchHistory] = useState<string[]>([]);
     const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [isConfirmModalOpen, setConfirmModalOpen] = useState(false);
+    const [isConfirming, setIsConfirming] = useState(false);
+
     const mobileInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const prevSaleItemsLengthRef = useRef(saleItems.length);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-    const recognitionRef = useRef<any>(null); // To hold the recognition instance
+    const recognitionRef = useRef<any>(null);
 
-    useEffect(() => {
-        try { const history = JSON.parse(sessionStorage.getItem('voiceSearchHistory') || '[]'); setVoiceSearchHistory(history); } catch (e) { setVoiceSearchHistory([]); }
-    }, []);
     useEffect(() => {
         const foundCustomer = customers.find(c => c.mobile === customerMobile);
         setActiveCustomer(foundCustomer || null);
@@ -707,7 +890,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     useEffect(() => {
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
-            const filtered = products.filter(p => p.name.toLowerCase().includes(lowercasedTerm) || p.barcode === searchTerm);
+            const filtered = products.filter(p => p.name.toLowerCase().includes(lowercasedTerm) || (p.barcode && p.barcode.includes(lowercasedTerm)));
             setSuggestions(filtered);
             setShowAddNewSuggestion(filtered.length === 0 && !products.some(p => p.barcode === searchTerm));
         } else {
@@ -736,19 +919,65 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     const handleProductSelect = (product: Product) => {
         const newItems = [...saleItems];
         const existingItemIndex = newItems.findIndex(item => item.productId === product.id && !item.isReturn);
-        if(existingItemIndex > -1) newItems[existingItemIndex].quantity += 1;
-        else {
-            newItems.push({ productId: product.id, name: product.name, quantity: 1, price: priceMode === 'B2B' ? product.b2bPrice : product.b2cPrice, isReturn: false });
+        if (existingItemIndex > -1) {
+            newItems[existingItemIndex].quantity += 1;
+        } else {
+            newItems.push({
+                productId: product.id,
+                name: product.name,
+                quantity: 1,
+                price: priceMode === 'B2B' ? product.b2bPrice : product.b2cPrice,
+                isReturn: false,
+            });
         }
         onSessionUpdate({ saleItems: newItems });
         setSearchTerm('');
     };
-    const handleAddNewProductSuggestion = async () => {
+    
+    const handleDirectAddProduct = async () => {
+        if (!searchTerm.trim()) return;
+        const term = searchTerm.trim();
+        const parts = term.split(/\s+/);
+        const lastPart = parts[parts.length - 1];
+        const price = parseFloat(lastPart);
+        const name = !isNaN(price) && parts.length > 1 ? parts.slice(0, -1).join(' ') : term;
+
+        if (!name) {
+            alert("Product name cannot be empty.");
+            return;
+        }
+
+        const newProductData: Omit<Product, 'id' | 'shopId'> = {
+            name: name,
+            nameTamil: '',
+            b2bPrice: 0,
+            b2cPrice: 0,
+            stock: 0,
+            barcode: '',
+            category: '',
+            subcategory: '',
+        };
+
+        if (!isNaN(price)) {
+            if (priceMode === 'B2B') {
+                newProductData.b2bPrice = price;
+            } else {
+                newProductData.b2cPrice = price;
+            }
+        }
+        
         try {
-            const newProduct = await onAddProduct({ name: searchTerm, nameTamil: '', b2cPrice: 0, b2bPrice: 0, stock: 0, barcode: '' });
-            handleProductSelect(newProduct);
-        } catch (error) { alert(`Error adding product: ${error instanceof Error ? error.message : String(error)}`); }
+            const addedProduct = await onAddProduct(newProductData);
+            handleProductSelect(addedProduct);
+        } catch (error) {
+            alert(`Error adding product directly: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setSearchTerm('');
+            setSuggestions([]);
+            setShowAddNewSuggestion(false);
+        }
     };
+
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
         const totalOptions = suggestions.length + (showAddNewSuggestion ? 1 : 0);
         if (e.key === 'ArrowDown') { e.preventDefault(); setActiveSuggestion(prev => (prev < totalOptions - 1 ? prev + 1 : prev)); }
@@ -756,22 +985,28 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         else if (e.key === 'Enter') {
             e.preventDefault();
             let selectionIndex = activeSuggestion === -1 && totalOptions > 0 ? 0 : activeSuggestion;
-            if (selectionIndex >= 0 && selectionIndex < suggestions.length) handleProductSelect(suggestions[selectionIndex]);
-            else if (showAddNewSuggestion && selectionIndex === suggestions.length) handleAddNewProductSuggestion();
+            if (selectionIndex >= 0) {
+                if (selectionIndex < suggestions.length) {
+                    handleProductSelect(suggestions[selectionIndex]);
+                } else if (showAddNewSuggestion && selectionIndex === suggestions.length) {
+                    handleDirectAddProduct();
+                }
+            }
         }
     };
-    const handleItemUpdate = (index: number, field: keyof SaleItem | 'name', value: any) => {
+    const handleItemUpdate = (index: number, field: keyof SaleItem, value: any) => {
         const updatedItems = [...saleItems]; (updatedItems[index] as any)[field] = value;
         onSessionUpdate({ saleItems: updatedItems });
-        if (userRole !== 'super_admin') return;
-        const item = updatedItems[index];
-        const productToUpdate = products.find(p => p.id === item.productId);
-        if (!productToUpdate) return;
-        if (field === 'price') {
-            const priceType = priceMode === 'B2B' ? 'b2bPrice' : 'b2cPrice';
-            if (productToUpdate[priceType] !== value) onUpdateProduct({ ...productToUpdate, [priceType]: value });
-        } else if (field === 'name') {
-             if (productToUpdate.name !== value) onUpdateProduct({ ...productToUpdate, name: value });
+        if (field === 'price' || field === 'name') {
+            if (userRole !== 'super_admin') return;
+            const item = updatedItems[index];
+            const productToUpdate = products.find(p => p.id === item.productId);
+            if (!productToUpdate) return;
+            if (field === 'price' && productToUpdate.b2cPrice !== value) {
+                onUpdateProduct({ ...productToUpdate, b2cPrice: value });
+            } else if (field === 'name' && productToUpdate.name !== value) {
+                onUpdateProduct({ ...productToUpdate, name: value });
+            }
         }
     };
     const handleItemRemove = (index: number) => onSessionUpdate({ saleItems: saleItems.filter((_, i) => i !== index) });
@@ -794,235 +1029,191 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         const recognition = new SpeechRecognition(); recognitionRef.current = recognition;
         recognition.lang = 'en-US'; recognition.interimResults = false; recognition.maxAlternatives = 1;
         setIsListening(true); setVoiceError(''); recognition.start();
-        recognition.onresult = (event: any) => {
-            const speechResult = event.results[0][0].transcript; setSearchTerm(speechResult);
-            const newHistory = [speechResult, ...voiceSearchHistory.filter(item => item !== speechResult)].slice(0, 5);
-            setVoiceSearchHistory(newHistory); sessionStorage.setItem('voiceSearchHistory', JSON.stringify(newHistory));
-        };
+        recognition.onresult = (event: any) => { setSearchTerm(event.results[0][0].transcript); };
         recognition.onend = () => { setIsListening(false); recognitionRef.current = null; };
         recognition.onnomatch = () => { setVoiceError("Didn’t catch that, please try again"); setTimeout(() => setVoiceError(''), 3000); };
         recognition.onerror = (event: any) => { if (event.error !== 'no-speech' && event.error !== 'aborted') { setVoiceError(`Error: ${event.error}`); setTimeout(() => setVoiceError(''), 3000); } };
     };
     
-    const handleCustomerMobileChange = (mobile: string) => {
-        onSessionUpdate({
-            customerMobile: mobile,
-            amountPaid: '',
-        });
+    const handleCustomerMobileChange = (newCode: string, newNumber: string) => {
+        onSessionUpdate({ customerMobile: `${newCode}${newNumber.replace(/\D/g, '')}` });
     };
+
+    const [mobileCode, mobileNumber] = useMemo(() => {
+        const mobile = customerMobile || '+91';
+        const match = mobile.match(/^(\+\d{1,4})(.*)$/);
+        if (match) {
+            return [match[1], match[2]];
+        }
+        if (mobile.startsWith('+')) {
+            return [mobile, ''];
+        }
+        return ['+91', mobile];
+    }, [customerMobile]);
 
     const {
-        grossTotal, returnTotal, grandTotal, taxAmount, netPayable,
-        previousBalance, totalAmountDue, newBalanceDue, changeDue
+        grossTotal, returnTotal, subtotal, grandTotal, taxAmount,
+        previousBalance, totalAmountDue, newBalanceDue
     } = useMemo(() => {
-        // Gross Total: Sum of all items that are NOT returns.
-        const grossTotal = saleItems
-            .filter(item => !item.isReturn)
-            .reduce((acc, item) => acc + item.quantity * item.price, 0);
-
-        // Return Total: Sum of all items that ARE returns.
-        const returnTotal = saleItems
-            .filter(item => item.isReturn)
-            .reduce((acc, item) => acc + item.quantity * item.price, 0);
-
-        // Grand Total: The subtotal before tax.
-        const grandTotal = grossTotal - returnTotal;
-        
-        const taxAmount = grandTotal * (taxPercent / 100);
-
-        const finalTotalBeforeRounding = grandTotal + taxAmount;
-        
-        // Net Payable: The final total, rounded to the nearest whole number (0.5 rounds up).
-        const netPayable = Math.round(finalTotalBeforeRounding);
-
+        const grossTotal = saleItems.filter(item => !item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
+        const returnTotal = saleItems.filter(item => item.isReturn).reduce((acc, item) => acc + item.quantity * item.price, 0);
+        const subtotal = grossTotal - returnTotal;
+        const taxableAmount = subtotal - discount;
+        const taxAmount = taxableAmount > 0 ? taxableAmount * (taxPercent / 100) : 0;
+        const grandTotal = taxableAmount + taxAmount;
         const previousBalance = activeCustomer?.balance ?? 0;
-        const totalAmountDue = previousBalance + netPayable;
-        
+        const totalAmountDue = previousBalance + grandTotal;
         const paid = parseFloat(amountPaid) || 0;
         const balance = totalAmountDue - paid;
-
         const newBalanceDue = balance > 0 ? balance : 0;
-        const changeDue = balance < 0 ? -balance : 0;
+        return { grossTotal, returnTotal, subtotal, grandTotal, taxAmount, previousBalance, totalAmountDue, newBalanceDue };
+    }, [saleItems, taxPercent, activeCustomer, amountPaid, discount]);
 
-        return {
-            grossTotal, returnTotal, grandTotal, taxAmount, netPayable,
-            previousBalance, totalAmountDue, newBalanceDue, changeDue
-        };
-    }, [saleItems, taxPercent, activeCustomer, amountPaid]);
+    useEffect(() => {
+        if (totalAmountDue >= 0) {
+            onSessionUpdate({ amountPaid: totalAmountDue.toFixed(2) });
+        }
+    }, [totalAmountDue, onSessionUpdate]);
 
-    const handleAmountPaidChange = (value: string) => {
-        onSessionUpdate({ amountPaid: value });
-    };
-
-    const handlePayFull = () => {
-        onSessionUpdate({ amountPaid: totalAmountDue.toFixed(2) });
-    };
-
-    const handlePreviewClick = () => {
-        if (saleItems.length === 0) { alert("Cannot preview an empty sale."); return; }
+    const handleConfirmAndShowReceipt = async () => {
         if (!currentShopId) { alert("Cannot create a sale without a selected shop."); return; }
-        
-        const finalAmountPaid = parseFloat(amountPaid) || 0;
-        // Show payment details unless the amount paid is exactly the total amount due.
-        // This ensures details are shown for partial, over, or zero payments on a non-zero bill.
-        const paymentDetailsEntered = finalAmountPaid !== totalAmountDue;
-        
-        onPreviewInvoice({ 
-            shopId: currentShopId, 
-            customerName, 
-            customerMobile, 
-            saleItems, 
-            grossTotal, 
-            returnTotal, 
-            subtotal: grandTotal, 
-            taxAmount, 
-            taxPercent, 
-            grandTotal: netPayable, 
-            languageMode, 
-            previousBalance, 
-            amountPaid: finalAmountPaid, 
-            totalBalanceDue: newBalanceDue, 
-            returnReason,
-            paymentDetailsEntered
-        });
+        setIsConfirming(true);
+        try {
+            const finalAmountPaid = parseFloat(amountPaid) || 0;
+            const saleToFinalize: SaleData = {
+                id: `sale-${Date.now()}`,
+                date: new Date(),
+                shopId: currentShopId, customerName, customerMobile, saleItems, 
+                grossTotal, returnTotal, subtotal, discount, taxAmount, taxPercent, 
+                grandTotal, languageMode, previousBalance, amountPaid: finalAmountPaid, 
+                totalBalanceDue: newBalanceDue, returnReason: sessionData.returnReason, paymentDetailsEntered: true
+            };
+            
+            const finalizedSale = await onFinalizeSale(saleToFinalize);
+            setConfirmModalOpen(false);
+            onViewInvoice(finalizedSale);
+
+        } catch (error) {
+            alert(`Error finalizing sale: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsConfirming(false);
+        }
     };
 
     return (
-        <div className="page-container">
-            <CustomerHistoryModal 
-                isOpen={isHistoryModalOpen}
-                onClose={() => setIsHistoryModalOpen(false)}
-                customer={activeCustomer}
-                salesHistory={salesHistory}
-                onViewInvoice={onViewInvoice}
+        <div className="page-container new-sale-page">
+            <CustomerHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} customer={activeCustomer} salesHistory={salesHistory} onViewInvoice={onViewInvoice} />
+            <ConfirmTransactionModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setConfirmModalOpen(false)}
+                onConfirm={handleConfirmAndShowReceipt}
+                isConfirming={isConfirming}
+                summary={{
+                    previousBalance,
+                    currentBillTotal: subtotal,
+                    grandTotalDue: totalAmountDue,
+                    amountPaid: parseFloat(amountPaid) || 0,
+                    newBalanceRemaining: newBalanceDue,
+                }}
             />
-            <main className="new-sale-layout">
-                <section className="sale-main" aria-labelledby="sale-heading">
-                    <h2 id="sale-heading" className="page-title" style={{ marginBottom: 'var(--padding-md)' }}>New Sale</h2>
-                    <div className="settings-toggles-top">
-                        <div className="toggles-group-left">
-                           <div className="toggle-switch"><button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button><button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button></div>
-                            <div className="toggle-switch"><button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English'})}>English</button><button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button></div>
-                            <div className="toggle-switch view-mode-toggle"><button className={`toggle-button ${viewMode === 'desktop' ? 'active' : ''}`} onClick={() => onViewModeChange('desktop')}>Desktop</button><button className={`toggle-button ${viewMode === 'mobile' ? 'active' : ''}`} onClick={() => onViewModeChange('mobile')}>Mobile</button></div>
-                        </div>
-                         <div className="toggle-switch">{[0, 1, 2].map(index => (<button key={index} className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`} onClick={() => onBillChange(index)}>{index + 1}</button>))}</div>
-                    </div>
-                    <div className="customer-details">
-                         <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value })} onKeyDown={handleCustomerNameKeydown} /></div>
-                        <div className="form-group"><label htmlFor="customer-mobile">Customer Mobile Number</label><input id="customer-mobile" type="text" className="input-field" ref={mobileInputRef} value={customerMobile} onChange={e => handleCustomerMobileChange(e.target.value)} onKeyDown={handleMobileKeydown} /></div>
-                    </div>
-                    <div className="product-search-area">
-                        <div className="form-group product-search-container">
-                            <label htmlFor="product-search">Product Search</label>
-                             <div className="input-with-icons">
-                                <input id="product-search" type="text" className="input-field" placeholder="Start typing product name..." ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={handleSearchKeyDown} autoComplete="off" />
-                                <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                                <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
-                            </div>
-                            {(suggestions.length > 0 || showAddNewSuggestion) && (
-                                <div className="product-suggestions">
-                                    {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>{p.name}</div>))}
-                                    {showAddNewSuggestion && (<div className={`suggestion-item add-new-item ${suggestions.length === activeSuggestion ? 'active' : ''}`} onClick={handleAddNewProductSuggestion} onMouseEnter={() => setActiveSuggestion(suggestions.length)}>+ Add "{searchTerm}" as new product</div>)}
-                                </div>
-                            )}
-                             <div className="voice-search-extras">
-                                {voiceError && <p className="voice-error-message">{voiceError}</p>}
-                                {voiceSearchHistory.length > 0 && (<div className="voice-search-history">{voiceSearchHistory.map((item, index) => (<button key={index} className="history-item" onClick={() => setSearchTerm(item)}>{item}</button>))}</div>)}
+
+            <main className="new-sale-main-content">
+                <section className="customer-and-search-section">
+                    <div className="sale-options-bar">
+                        <div className="toggle-group">
+                            <label>Price Mode</label>
+                            <div className="toggle-switch">
+                                <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
+                                <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
                             </div>
                         </div>
-                         <div className="product-add-button-container">
-                            <button 
-                                className="action-button-secondary"
-                                onClick={() => setIsHistoryModalOpen(true)}
-                                disabled={!activeCustomer}
-                                title={!activeCustomer ? "Enter a known customer's mobile to view history" : `View history for ${customerName}`}
-                            >
-                                History
-                            </button>
+                        <div className="toggle-group">
+                            <label>Invoice Language</label>
+                            <div className="toggle-switch">
+                                <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English' })}>English</button>
+                                <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
+                            </div>
                         </div>
+                    </div>
+                    <div className="customer-details-new">
+                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value })} onKeyDown={handleCustomerNameKeydown} /></div>
+                        <div className="form-group">
+                            <label htmlFor="customer-mobile">Customer Mobile</label>
+                            <div className="mobile-input-group">
+                                <input
+                                    type="text"
+                                    className="country-code-input"
+                                    value={mobileCode}
+                                    onChange={e => handleCustomerMobileChange(e.target.value, mobileNumber)}
+                                    aria-label="Country Code"
+                                />
+                                <input 
+                                    id="customer-mobile" 
+                                    type="text" 
+                                    className="input-field" 
+                                    ref={mobileInputRef} 
+                                    value={mobileNumber} 
+                                    onChange={e => handleCustomerMobileChange(mobileCode, e.target.value)} 
+                                    onKeyDown={handleMobileKeydown}
+                                />
+                            </div>
+                        </div>
+                        <div className="history-btn-container"><button className="action-button-secondary" onClick={() => setIsHistoryModalOpen(true)} disabled={!activeCustomer}>History</button></div>
+                    </div>
+                    <div className="product-search-container">
+                        <div className="input-with-icons">
+                            <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={handleSearchKeyDown} autoComplete="off" />
+                            <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                        </div>
+                        {(suggestions.length > 0 || showAddNewSuggestion) && (
+                            <div className="product-suggestions">
+                                {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>{p.name}</div>))}
+                                {showAddNewSuggestion && (
+                                    <div
+                                        className={`suggestion-item add-new-product-suggestion ${suggestions.length === activeSuggestion ? 'active' : ''}`}
+                                        onClick={handleDirectAddProduct}
+                                        onMouseEnter={() => setActiveSuggestion(suggestions.length)}
+                                    >
+                                        + Add New Product: "{searchTerm}"
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {voiceError && <p className="voice-error-message">{voiceError}</p>}
                     </div>
                     {isScannerOpen && (<div className="barcode-scanner-container"><div id="barcode-reader" style={{ width: '100%', maxWidth: '500px' }}></div><button onClick={() => setIsScannerOpen(false)} className="action-button-secondary">Cancel</button></div>)}
-                    <div className="sales-grid-container">
-                        <table className="sales-grid" aria-label="Sales Items">
-                            <thead><tr><th>S.No</th><th>Product Description</th><th>Quantity</th><th>Price</th><th>Total</th><th>Return</th><th>Actions</th></tr></thead>
-                            <tbody>
-                                {saleItems.length === 0 && (<tr><td colSpan={7} data-label="Status" style={{textAlign: 'center', padding: '2rem'}}>No items in sale.</td></tr>)}
-                                {saleItems.map((item, index) => (
-                                    <tr key={`${item.productId}-${index}`} className={item.isReturn ? 'is-return' : ''}>
-                                        <td data-label="S.No">{index + 1}</td>
-                                        <td data-label="Product"><input type="text" className="input-field-seamless" value={item.name} onChange={e => handleItemUpdate(index, 'name', e.target.value)} aria-label={`Product name for ${item.name}`} disabled={userRole !== 'super_admin'} /></td>
-                                        <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'quantity')} aria-label={`Quantity for ${item.name}`} step="0.001" /></td>
-                                        <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'price')} aria-label={`Price for ${item.name}`} step="0.01" disabled={userRole !== 'super_admin'} /></td>
-                                        <td data-label="Total">{formatNumberForInvoice(item.quantity * item.price)}</td>
-                                        <td data-label="Return"><button className={`return-toggle-button ${item.isReturn ? 'is-return-active' : ''}`} onClick={() => handleItemUpdate(index, 'isReturn', !item.isReturn)} aria-label={`Toggle return status for ${item.name}. Currently ${item.isReturn ? 'Yes' : 'No'}`}>{item.isReturn ? 'Y' : 'N'}</button></td>
-                                        <td data-label="Actions"><button className="action-button" onClick={() => handleItemRemove(index)} aria-label={`Remove ${item.name}`}>&times;</button></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
                 </section>
 
-                <aside className="sale-sidebar">
-                    <div className="totals-summary-wrapper">
-                        {saleItems.some(i => i.isReturn) && (<div className="form-group"><label htmlFor="return-reason">Reason for Return (Optional)</label><textarea id="return-reason" className="input-field" rows={2} value={returnReason || ''} onChange={e => onSessionUpdate({ returnReason: e.target.value })} placeholder="e.g., Damaged item" /></div>)}
-                        
-                        <div className="totals-summary">
-                            <div className="total-row"><span>Gross Total</span><span>{formatCurrency(grossTotal)}</span></div>
-                            {returnTotal > 0 && (<div className="total-row return-total-row"><span>Return Total</span><span>-{formatCurrency(returnTotal)}</span></div>)}
-                            <div className="total-row"><span>Grand Total</span><span>{formatCurrency(grandTotal)}</span></div>
-                            {taxAmount > 0 && (<div className="total-row"><span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span></div>)}
-                            <div className="total-row sale-total-row"><span>Net Payable</span><span>{formatCurrency(netPayable)}</span></div>
-                            
-                            <div className="balance-summary-section">
-                                <div className="total-row"><span>Previous Balance</span><span>{formatCurrency(previousBalance)}</span></div>
-                                <div className="total-row total-due-row"><span>Total Amount Due</span><span>{formatCurrency(totalAmountDue)}</span></div>
-                            </div>
-                            
-                            <div className="payment-section">
-                                <div className="total-row amount-paid-row">
-                                    <label htmlFor="amount-paid-input">Amount Paid</label>
-                                    <div className="amount-paid-input-group">
-                                        <button className="action-button-secondary amount-paid-yes" onClick={handlePayFull}>Full</button>
-                                        <input
-                                            id="amount-paid-input"
-                                            type="number"
-                                            className="input-field"
-                                            value={amountPaid}
-                                            onChange={e => handleAmountPaidChange(e.target.value)}
-                                            placeholder="0.00"
-                                            step="0.01"
-                                            aria-label="Amount Paid"
-                                        />
-                                    </div>
-                                </div>
-
-                                {changeDue > 0 && (
-                                    <div className="total-row change-due-row">
-                                        <span>Change Due</span>
-                                        <span>{formatCurrency(changeDue)}</span>
-                                    </div>
-                                )}
-
-                                {newBalanceDue > 0 && !changeDue && (
-                                    <div className="total-row new-balance-due-row">
-                                        <span>New Balance Due</span>
-                                        <span>{formatCurrency(newBalanceDue)}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="finalize-section">
-                        <div className="form-group">
-                            <label htmlFor="tax-percent">Tax %</label>
-                            <input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        <button className="finalize-button" onClick={handlePreviewClick}>Finish Sale &amp; Preview</button>
-                    </div>
-                </aside>
+                <div className="sales-grid-container">
+                    <table className="sales-grid" aria-label="Sales Items">
+                        <thead><tr><th>S.No</th><th>Description</th><th>Quantity</th><th>Price</th><th>Total</th><th>Return</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            {saleItems.length === 0 && (<tr><td colSpan={7} style={{textAlign: 'center', padding: '2rem'}}>No items in sale.</td></tr>)}
+                            {saleItems.map((item, index) => (
+                                <tr key={`${item.productId}-${index}`} className={item.isReturn ? 'is-return' : ''}>
+                                    <td data-label="S.No">{index + 1}</td>
+                                    <td data-label="Description">{item.name}</td>
+                                    <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'quantity')} aria-label={`Quantity for ${item.name}`} step="0.001" /></td>
+                                    <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'price')} aria-label={`Price for ${item.name}`} step="0.01" disabled={userRole !== 'super_admin'} /></td>
+                                    <td data-label="Total">{formatNumberForInvoice(item.quantity * item.price)}</td>
+                                    <td data-label="Return"><input type="checkbox" className="return-checkbox" checked={item.isReturn} onChange={() => handleItemUpdate(index, 'isReturn', !item.isReturn)} aria-label={`Toggle return status for ${item.name}`} /></td>
+                                    <td data-label="Actions"><button className="action-button remove-item-btn" onClick={() => handleItemRemove(index)} aria-label={`Remove ${item.name}`}>&times;</button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </main>
+
+            <footer className="new-sale-footer">
+                <div className="footer-item"><label htmlFor="discount-input">Discount (₹)</label><input id="discount-input" type="number" className="input-field" value={discount} onChange={e => onSessionUpdate({ discount: parseFloat(e.target.value) || 0 })} /></div>
+                <div className="footer-item"><label htmlFor="tax-percent">Tax (%)</label><input id="tax-percent" type="number" className="input-field" value={taxPercent} onChange={e => onSessionUpdate({ taxPercent: parseFloat(e.target.value) || 0 })} /></div>
+                <div className="footer-item"><span className="label">Previous Balance (₹)</span><span className="value">{formatNumberForInvoice(previousBalance)}</span></div>
+                <div className="footer-item"><label htmlFor="amount-paid-input">Amount Paid (₹)</label><input id="amount-paid-input" type="number" className="input-field" value={amountPaid} onChange={e => onSessionUpdate({ amountPaid: e.target.value })} /></div>
+                <div className="footer-item preview-btn"><button className="finalize-button" onClick={() => setConfirmModalOpen(true)}>Preview Invoice</button></div>
+                <div className="footer-item grand-total"><span className="label">Grand Total:</span><span className="value">{formatCurrency(grandTotal)}</span></div>
+            </footer>
         </div>
     );
 };
@@ -1033,36 +1224,78 @@ type ProductInventoryPageProps = {
     products: Product[];
     onAddProduct: (newProduct: Omit<Product, 'id' | 'shopId'>) => Promise<Product>;
     onBulkAddProducts: (products: Omit<Product, 'id' | 'shopId'>[]) => Promise<void>;
+    onDeleteProducts: (productIds: number[]) => Promise<void>;
     shops: Shop[];
 };
-const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onBulkAddProducts, shops }) => {
+const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, onAddProduct, onBulkAddProducts, onDeleteProducts, shops }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
 
     const filteredProducts = useMemo(() => {
         if (!searchTerm) return products;
         const lowercasedTerm = searchTerm.toLowerCase();
         return products.filter(p => 
             p.name.toLowerCase().includes(lowercasedTerm) ||
+            (p.nameTamil && p.nameTamil.toLowerCase().includes(lowercasedTerm)) ||
             (p.barcode && p.barcode.toLowerCase().includes(lowercasedTerm)) ||
             (p.category && p.category.toLowerCase().includes(lowercasedTerm)) ||
             (p.subcategory && p.subcategory.toLowerCase().includes(lowercasedTerm))
         );
     }, [products, searchTerm]);
 
+    const handleSelectProduct = (productId: number) => {
+        setSelectedProducts(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(productId)) {
+                newSet.delete(productId);
+            } else {
+                newSet.add(productId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const filteredIds = filteredProducts.map(p => p.id);
+        if (e.target.checked) {
+            setSelectedProducts(prev => new Set([...prev, ...filteredIds]));
+        } else {
+            setSelectedProducts(prev => {
+                const newSet = new Set(prev);
+                filteredIds.forEach(id => newSet.delete(id));
+                return newSet;
+            });
+        }
+    };
+    
+    const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProducts.has(p.id));
+
+    const handleDeleteSelected = async () => {
+        if (window.confirm(`Are you sure you want to delete ${selectedProducts.size} selected products? This action cannot be undone.`)) {
+            try {
+                await onDeleteProducts(Array.from(selectedProducts));
+                setSelectedProducts(new Set());
+            } catch (error) {
+                alert(`Error deleting products: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+    };
+
+
     const handleExportPdf = () => {
         const doc = new jsPDF();
-        const tableColumn = ["ID", "Name (English)", "Category", "Subcategory", "Shop", "B2B Price", "B2C Price", "Stock", "Barcode"];
+        const tableColumn = ["S.No", "Name (English)", "Name (Tamil)", "Category", "Subcategory", "B2B Price", "B2C Price", "Stock", "Barcode"];
         const tableRows: (string | number)[][] = [];
 
-        filteredProducts.forEach(product => {
+        filteredProducts.forEach((product, index) => {
             const productData = [
-                product.id,
+                index + 1,
                 product.name,
+                product.nameTamil || 'N/A',
                 product.category || 'N/A',
                 product.subcategory || 'N/A',
-                shops.find(s => s.id === product.shopId)?.name || 'N/A',
                 formatCurrency(product.b2bPrice),
                 formatCurrency(product.b2cPrice),
                 product.stock,
@@ -1076,7 +1309,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
         
         const startX = 14;
         let y = 30;
-        const colWidths = [10, 40, 25, 25, 25, 20, 20, 15, 30];
+        const colWidths = [10, 35, 35, 20, 20, 20, 20, 15, 30];
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
@@ -1115,7 +1348,12 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             <div className="page-header">
                 <h2 className="page-title">Product Inventory</h2>
                 <div className="page-header-actions">
-                    <button className="action-button-secondary" onClick={() => setIsImportModalOpen(true)}>Import Bulk Products</button>
+                    {selectedProducts.size > 0 && (
+                        <button className="action-button-secondary danger" onClick={handleDeleteSelected}>
+                            Delete Selected ({selectedProducts.size})
+                        </button>
+                    )}
+                    <button className="action-button-secondary" onClick={() => setIsImportModalOpen(true)}>Import From Excel</button>
                     <button className="action-button-secondary" onClick={handleExportPdf}>Export as PDF</button>
                     <button className="action-button-primary" onClick={() => setIsAddModalOpen(true)}>Add New Product</button>
                 </div>
@@ -1135,18 +1373,32 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             <div className="inventory-layout">
                 <div className="inventory-list-container">
                      <table className="inventory-table">
-                        <thead><tr><th>ID</th><th>Name (English)</th><th>Category</th><th>Subcategory</th><th>Shop</th><th>B2B Price</th><th>B2C Price</th><th>Stock</th><th>Barcode</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" onChange={handleSelectAll} checked={areAllFilteredSelected} title="Select all visible products" /></th>
+                                <th>S.No</th>
+                                <th>Name (English)</th>
+                                <th>Name (Tamil)</th>
+                                <th>Category</th>
+                                <th>Subcategory</th>
+                                <th>B2B Price</th>
+                                <th>B2C Price</th>
+                                <th>Stock</th>
+                                <th>Barcode</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             {filteredProducts.length === 0 && (
-                                <tr><td colSpan={9} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
+                                <tr><td colSpan={10} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
                             )}
-                            {filteredProducts.map(p => (
+                            {filteredProducts.map((p, index) => (
                                 <tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}>
-                                    <td data-label="ID">{p.id}</td>
+                                    <td><input type="checkbox" checked={selectedProducts.has(p.id)} onChange={() => handleSelectProduct(p.id)} /></td>
+                                    <td data-label="S.No">{index + 1}</td>
                                     <td data-label="Name (English)">{p.name}</td>
+                                    <td data-label="Name (Tamil)">{p.nameTamil || 'N/A'}</td>
                                     <td data-label="Category">{p.category || 'N/A'}</td>
                                     <td data-label="Subcategory">{p.subcategory || 'N/A'}</td>
-                                    <td data-label="Shop">{shops.find(s => s.id === p.shopId)?.name || 'N/A'}</td>
                                     <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
                                     <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
                                     <td data-label="Stock">{p.stock}</td>
@@ -1168,7 +1420,6 @@ type InvoicePageProps = {
     onNavigate: (page: string) => void;
     settings: AppSettings;
     onSettingsChange: (settings: AppSettings) => void;
-    onConfirmFinalizeSale: () => Promise<void>;
     isFinalized: boolean;
     margins: { top: number; right: number; bottom: number; left: number };
     onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
@@ -1177,7 +1428,7 @@ type InvoicePageProps = {
     fontStyle: InvoiceFontStyle;
     onFontStyleChange: (style: InvoiceFontStyle) => void;
 };
-const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, onConfirmFinalizeSale, isFinalized, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange }) => {
     const [paperSize, setPaperSize] = useState('4inch');
     const [fontSize, setFontSize] = useState('medium');
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
@@ -1185,7 +1436,6 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
     const [isTitleEditing, setIsTitleEditing] = useState(false);
     const [isFooterEditing, setIsFooterEditing] = useState(false);
-    const [isFinalizing, setIsFinalizing] = useState(false);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const footerInputRef = useRef<HTMLInputElement>(null);
     const { invoiceFooter } = settings;
@@ -1223,26 +1473,21 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
         const url = `https://api.whatsapp.com/send?phone=${whatsAppNumber.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`;
         window.open(url, '_blank', 'noopener,noreferrer');
     };
-    const handleFinalize = async () => {
-        setIsFinalizing(true);
-        try { await onConfirmFinalizeSale(); }
-        catch (error) { alert(`Error finalizing sale: ${error instanceof Error ? error.message : String(error)}`); setIsFinalizing(false); }
-    };
     return (
         <div className="page-container invoice-page-container">
             <div className={`invoice-paper size-${paperSize} font-${fontSize} font-style-${fontStyle}`} ref={invoiceRef} style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}>
                 <div className="printable-area">
                     <header className="invoice-header" style={{ transform: `translateY(${offsets.header}px)` }}>{isTitleEditing ? <input ref={titleInputRef} type="text" value={invoiceTitle} onChange={e => setInvoiceTitle(e.target.value)} onBlur={() => setIsTitleEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }} className="invoice-title-input" /> : <h2 onDoubleClick={() => setIsTitleEditing(true)} title="Double-click to edit">{invoiceTitle}</h2>}</header>
                     <section className="invoice-customer">{(customerName || customerMobile) && (<><p><strong>Customer:</strong> {customerName || 'N/A'}</p><p><strong>Mobile:</strong> {customerMobile || 'N/A'}</p></>)}<p><strong>Date:</strong> {saleData.date.toLocaleString()}</p></section>
-                    <table className="invoice-table"><thead><tr><th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th><th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th><th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th><th>{languageMode === 'English' ? 'Price' : 'விலை'}</th><th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th></tr></thead><tbody>{regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatNumberForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table>
+                    <table className="invoice-table"><thead><tr><th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th><th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th><th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th><th>{languageMode === 'English' ? 'Price' : 'விலை'}</th><th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th></tr></thead><tbody>{regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table>
                     {regularItems.length > 0 && (<div className="total-row invoice-section-total"><span>{languageMode === 'English' ? 'Gross Total' : 'மொத்த விற்பனை'}</span><span>{formatNumberForInvoice(finalGrossTotal)}</span></div>)}
-                    {returnedItems.length > 0 && (<><h3 className="invoice-section-header">{languageMode === 'English' ? 'Return Items' : 'திரும்பிய பொருட்கள்'}</h3><table className="invoice-table"><tbody>{returnedItems.map((item, index) => (<tr key={index} className="is-return"><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td className="return-amount">-{formatNumberForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table><div className="total-row return-total-row invoice-section-total"><span>{languageMode === 'English' ? 'Return Total' : 'திரும்பிய மொத்தம்'}</span><span className="return-amount">-{formatNumberForInvoice(finalReturnTotal)}</span></div>{returnReason && <p className="invoice-return-reason"><strong>Reason:</strong> {returnReason}</p>}</>)}
+                    {returnedItems.length > 0 && (<><h3 className="invoice-section-header">{languageMode === 'English' ? 'Return Items' : 'திரும்பிய பொருட்கள்'}</h3><table className="invoice-table"><tbody>{returnedItems.map((item, index) => (<tr key={index} className="is-return"><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td className="return-amount">-{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table><div className="total-row return-total-row invoice-section-total"><span>{languageMode === 'English' ? 'Return Total' : 'திரும்பிய மொத்தம்'}</span><span className="return-amount">-{formatNumberForInvoice(finalReturnTotal)}</span></div>{returnReason && <p className="invoice-return-reason"><strong>Reason:</strong> {returnReason}</p>}</>)}
                     <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}><div className="invoice-totals">{taxPercent > 0 && (<div className="total-row"><span>{languageMode === 'English' ? `Tax (${taxPercent}%)` : `வரி (${taxPercent}%)`}</span><span>{formatNumberForInvoice(taxAmount)}</span></div>)}<div className="total-row grand-total"><span>{languageMode === 'English' ? 'Grand Total' : 'மொத்தத் தொகை'}</span><span>{formatCurrency(grandTotal)}</span></div>
                     <div className="balance-summary">
                         {previousBalance !== 0 && (
                             <div className="total-row"><span>{languageMode === 'English' ? 'Previous Balance' : 'முந்தைய இருப்பு'}</span><span>{formatCurrency(previousBalance)}</span></div>
                         )}
-                        {paymentDetailsEntered && (
+                        {paymentDetailsEntered && amountPaid !== grandTotal && (
                             <div className="total-row"><span>{languageMode === 'English' ? 'Amount Paid' : 'செலுத்திய தொகை'}</span><span>{formatCurrency(amountPaid)}</span></div>
                         )}
                         {paymentDetailsEntered && totalBalanceDue > 0 && (
@@ -1258,7 +1503,12 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
             <div className="invoice-actions">
                 <div className="invoice-main-actions"><button onClick={handlePrint} className="action-button-primary">Print</button><button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button><div className="whatsapp-group"><input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} /><button onClick={handleSendWhatsApp} className="action-button-primary">Send</button></div></div>
                 <div className="invoice-controls"><div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div><div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div><div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div><div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div><div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div></div>
-                <div className="finalize-actions-group"><button onClick={handleFinalize} className="finalize-button" disabled={isFinalized || isFinalizing}>{isFinalized ? 'Sale Recorded ✓' : (isFinalizing ? 'Recording...' : 'Finalize Sale')}</button><button onClick={() => onNavigate('New Sale')} className="action-button-secondary" disabled={isFinalizing}>Back to Sale</button></div>
+                <div className="finalize-actions-group">
+                    <button className="finalize-button" disabled={true}>
+                        {isFinalized ? 'Sale Recorded ✓' : 'Finalizing...'}
+                    </button>
+                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">Back to New Sale</button>
+                </div>
             </div>
         </div>
     );
@@ -2053,7 +2303,7 @@ const App = () => {
     const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login');
     const [tokenForReset, setTokenForReset] = useState<string | null>(null);
 
-    const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, saleItems: [], amountPaid: '', returnReason: '', }), []);
+    const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, discount: 0, saleItems: [], amountPaid: '', returnReason: '', }), []);
     const [saleSessions, setSaleSessions] = useState<SaleSession[]>([ {...initialSaleSession}, {...initialSaleSession}, {...initialSaleSession} ]);
     const [activeBillIndex, setActiveBillIndex] = useState(0);
 
@@ -2243,6 +2493,14 @@ const App = () => {
         setAllProducts(prev => [...prev, ...newProducts]);
         processSyncQueue();
     };
+    const handleDeleteProducts = async (productIds: number[]) => {
+        await dbManager.bulkDelete('products', productIds);
+        for (const id of productIds) {
+            await dbManager.put('outbox', { type: 'deleteProduct', payload: { id } });
+        }
+        setAllProducts(prev => prev.filter(p => !productIds.includes(p.id)));
+        processSyncQueue();
+    };
     const handleAddCustomer = async (newCustomerData: Omit<Customer, 'balance'>) => {
         if (customers.some(c => c.mobile === newCustomerData.mobile)) throw new Error("Mobile number already exists.");
         const newCustomer = { ...newCustomerData, balance: 0 };
@@ -2389,41 +2647,47 @@ const App = () => {
         alert(`Order ${orderId} has been successfully ${newStatus.toLowerCase()}.`);
     };
 
-    const handlePreviewInvoice = (saleData: Omit<SaleData, 'id' | 'date'>) => {
-        const completeSaleData: SaleData = { ...saleData, id: `sale-${Date.now()}`, date: new Date() };
-        setPendingSaleData(completeSaleData); setIsSaleFinalized(false); setCurrentPage('Invoice');
-    };
-    const handleConfirmFinalizeSale = async () => {
-        if (!pendingSaleData || isSaleFinalized) return;
-        await dbManager.put('sales', pendingSaleData);
-        await dbManager.put('outbox', { type: 'createSale', payload: pendingSaleData });
+    const handleFinalizeSale = async (saleToFinalize: SaleData): Promise<SaleData> => {
+        if (!saleToFinalize) throw new Error("No sale data to finalize.");
+
+        await dbManager.put('sales', saleToFinalize);
+        await dbManager.put('outbox', { type: 'createSale', payload: saleToFinalize });
+
         const updatedProducts = [...allProducts];
-        for (const item of pendingSaleData.saleItems) {
+        for (const item of saleToFinalize.saleItems) {
             const idx = updatedProducts.findIndex(p => p.id === item.productId);
             if (idx > -1) {
-                updatedProducts[idx].stock += item.isReturn ? item.quantity : -item.quantity;
-                await dbManager.put('products', updatedProducts[idx]);
+                const productToUpdate = { ...updatedProducts[idx] };
+                productToUpdate.stock += item.isReturn ? item.quantity : -item.quantity;
+                updatedProducts[idx] = productToUpdate;
+                await dbManager.put('products', productToUpdate);
+                await dbManager.put('outbox', { type: 'updateProduct', payload: productToUpdate });
             }
         }
-        if (pendingSaleData.customerMobile) {
-            const customer = await dbManager.get<Customer>('customers', pendingSaleData.customerMobile);
-            const newCustomer: Customer = customer || { mobile: pendingSaleData.customerMobile, name: pendingSaleData.customerName, balance: 0 };
-            newCustomer.balance = pendingSaleData.totalBalanceDue;
-            newCustomer.name = pendingSaleData.customerName || newCustomer.name;
+        
+        if (saleToFinalize.customerMobile) {
+            const customer = await dbManager.get<Customer>('customers', saleToFinalize.customerMobile);
+            const newCustomer: Customer = customer || { mobile: saleToFinalize.customerMobile, name: saleToFinalize.customerName, balance: 0 };
+            newCustomer.balance = saleToFinalize.totalBalanceDue;
+            newCustomer.name = saleToFinalize.customerName || newCustomer.name;
             await dbManager.put('customers', newCustomer);
+            await dbManager.put('outbox', { type: 'updateCustomer', payload: newCustomer });
         }
-        setAllSalesHistory(prev => [pendingSaleData, ...prev].sort((a,b) => b.date.getTime() - a.date.getTime()));
+        
+        setAllSalesHistory(prev => [saleToFinalize, ...prev].sort((a,b) => b.date.getTime() - a.date.getTime()));
         setAllProducts(updatedProducts);
         setCustomers(await dbManager.getAll('customers'));
-        setIsSaleFinalized(true);
         resetCurrentSaleSession();
         processSyncQueue();
-        await new Promise(resolve => setTimeout(resolve, 200));
-        handleNavigate('New Sale');
+        
+        return saleToFinalize;
     };
+
     const handleNavigate = (page: string) => {
-        if (page === 'New Sale' && currentPage === 'Invoice' && !isSaleFinalized) {}
-        else if (page === 'New Sale') { setPendingSaleData(null); setIsSaleFinalized(false); }
+        if (page === 'New Sale') {
+            setPendingSaleData(null);
+            setIsSaleFinalized(false);
+        }
         setCurrentPage(page);
     };
     const handleViewInvoiceFromReport = (sale: SaleData) => { setPendingSaleData(sale); setIsSaleFinalized(true); setCurrentPage('Invoice'); };
@@ -2490,10 +2754,10 @@ const App = () => {
     const renderPage = () => {
         switch (currentPage) {
             case 'Admin Dashboard': return <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} />;
-            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
-            case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} shops={shops} />;
+            case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onFinalizeSale={handleFinalizeSale} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
+            case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
             case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
-            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} onConfirmFinalizeSale={handleConfirmFinalizeSale} isFinalized={isSaleFinalized} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
+            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
             case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports': return <ReportsPage salesHistory={visibleSalesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
@@ -2501,7 +2765,7 @@ const App = () => {
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
             case 'Manage Users': return currentUser.role === 'super_admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} onAdminPasswordReset={handleAdminPasswordReset} /> : <p>Access Denied</p>;
-            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} viewMode={viewMode} onViewModeChange={setViewMode} />;
+            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onFinalizeSale={handleFinalizeSale} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
         }
     };
     return (<div className={viewMode === 'mobile' ? 'view-mode-mobile' : ''}><AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={handleShopChange} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} /><main className="app-main">{renderPage()}</main></div>);
