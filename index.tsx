@@ -196,6 +196,7 @@ interface SalesOrder {
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
 type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
+type InvoiceTheme = 'professional' | 'modern' | 'classic' | 'minimalist';
 type ViewMode = 'desktop' | 'mobile';
 
 
@@ -1584,8 +1585,10 @@ type InvoicePageProps = {
     onOffsetsChange: (offsets: { header: number; footer: number }) => void;
     fontStyle: InvoiceFontStyle;
     onFontStyleChange: (style: InvoiceFontStyle) => void;
+    theme: InvoiceTheme;
+    onThemeChange: (theme: InvoiceTheme) => void;
 };
-const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, onCompleteSale, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange }) => {
+const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, onCompleteSale, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange, theme, onThemeChange }) => {
     const [paperSize, setPaperSize] = useState('4inch');
     const [fontSize, setFontSize] = useState('medium');
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
@@ -1642,7 +1645,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     };
     return (
         <div className="page-container invoice-page-container">
-            <div className={`invoice-paper size-${paperSize} font-${fontSize} font-style-${fontStyle}`} ref={invoiceRef} style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}>
+            <div className={`invoice-paper theme-${theme} size-${paperSize} font-${fontSize} font-style-${fontStyle}`} ref={invoiceRef} style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}>
                 <div className="printable-area">
                     <header className="invoice-header" style={{ transform: `translateY(${offsets.header}px)` }}>{isTitleEditing ? <input ref={titleInputRef} type="text" value={invoiceTitle} onChange={e => setInvoiceTitle(e.target.value)} onBlur={() => setIsTitleEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }} className="invoice-title-input" /> : <h2 onDoubleClick={() => setIsTitleEditing(true)} title="Double-click to edit">{invoiceTitle}</h2>}</header>
                     <section className="invoice-customer">{(customerName || customerMobile) && (<><p><strong>Customer:</strong> {customerName || 'N/A'}</p><p><strong>Mobile:</strong> {customerMobile || 'N/A'}</p></>)}<p><strong>Date:</strong> {saleData.date.toLocaleString()}</p></section>
@@ -1693,6 +1696,15 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                 <div className="invoice-controls">
                     <div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div>
                     <div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div>
+                    <div className="form-group">
+                        <label htmlFor="invoice-theme">Theme</label>
+                        <select id="invoice-theme" value={theme} onChange={(e) => onThemeChange(e.target.value as InvoiceTheme)} className="select-field">
+                            <option value="professional">Professional</option>
+                            <option value="modern">Modern</option>
+                            <option value="classic">Classic</option>
+                            <option value="minimalist">Minimalist</option>
+                        </select>
+                    </div>
                     <div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div>
                     <div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div>
                     <div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div>
@@ -2480,6 +2492,7 @@ const App = () => {
     const [invoiceMargins, setInvoiceMargins] = useState({ top: 20, right: 20, bottom: 20, left: 20 });
     const [invoiceTextOffsets, setInvoiceTextOffsets] = useState({ header: 0, footer: 0 });
     const [invoiceFontStyle, setInvoiceFontStyle] = useState<InvoiceFontStyle>('monospace');
+    const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>('professional');
     const [users, setUsers] = useState<User[]>([]);
     const [shops, setShops] = useState<Shop[]>([]);
     const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
@@ -2965,7 +2978,7 @@ const App = () => {
             case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
             case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
             case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
-            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} />;
+            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} theme={invoiceTheme} onThemeChange={setInvoiceTheme} />;
             case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
             case 'Reports': return <ReportsPage salesHistory={visibleSalesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
