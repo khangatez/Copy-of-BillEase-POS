@@ -677,13 +677,42 @@ body {
   max-height: 200px;
   overflow-y: auto;
 }
+/* Custom Scrollbar for Product Suggestions */
+.product-suggestions::-webkit-scrollbar {
+  width: 10px;
+}
+.product-suggestions::-webkit-scrollbar-track {
+  background: var(--background-tertiary);
+  border-radius: var(--border-radius);
+}
+.product-suggestions::-webkit-scrollbar-thumb {
+  background-color: var(--accent-primary);
+  border-radius: var(--border-radius);
+  border: 2px solid var(--background-tertiary);
+}
+.product-suggestions::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-primary-hover);
+}
+
 .suggestion-item {
   padding: 10px;
   cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .suggestion-item:hover, .suggestion-item.active {
   background-color: var(--accent-primary);
   color: var(--background-secondary);
+}
+.suggestion-price {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.suggestion-item:hover .suggestion-price,
+.suggestion-item.active .suggestion-price {
+    color: var(--background-secondary);
 }
 .suggestion-item.add-new-product-suggestion {
     font-weight: 600;
@@ -992,13 +1021,20 @@ body {
 
 .invoice-actions {
     display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: var(--padding-md);
     margin-top: var(--padding-md);
     padding-top: var(--padding-md);
     border-top: 1px solid var(--border-color);
+}
+
+.invoice-main-actions-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: var(--padding-md);
 }
 
 .invoice-controls {
@@ -1056,18 +1092,11 @@ body {
 
 .finalize-actions-group {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: var(--padding-sm);
-    min-width: 160px;
+    align-items: center;
 }
 
-.finalize-actions-group .finalize-button {
-    margin: 0;
-}
-
-.finalize-actions-group .action-button-secondary {
-    text-align: center;
-}
 .finalize-button {
   background-color: var(--success-color);
   color: var(--background-primary);
@@ -1077,7 +1106,6 @@ body {
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
-  width: 100%;
 }
 .finalize-button:hover {
     filter: brightness(1.1);
@@ -1432,424 +1460,3 @@ body {
     margin-bottom: var(--padding-md);
     border-bottom: 1px solid var(--border-color);
     padding-bottom: var(--padding-sm);
-}
-.settings-card .toggle-group {
-    background-color: transparent;
-    padding: 0;
-}
-.theme-selector {
-    border-radius: var(--border-radius);
-    flex-wrap: wrap;
-    gap: var(--padding-sm);
-}
-.theme-selector .toggle-button {
-    border-radius: calc(var(--border-radius) - 2px);
-}
-
-/* --- Login Page --- */
-.login-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-}
-.login-form {
-    background-color: var(--background-secondary);
-    padding: var(--padding-lg);
-    border-radius: var(--border-radius);
-    width: 100%;
-    max-width: 400px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-    border: 1px solid var(--border-color);
-}
-.login-form h2 {
-    text-align: center;
-    margin-bottom: var(--padding-sm);
-}
-.login-error {
-    color: var(--danger-color);
-    background-color: rgba(220, 53, 69, 0.1);
-    padding: var(--padding-sm);
-    border-radius: var(--border-radius);
-    text-align: center;
-}
-.success-message {
-    color: var(--success-color);
-    background-color: rgba(40, 167, 69, 0.1);
-    padding: var(--padding-sm);
-    border-radius: var(--border-radius);
-    text-align: center;
-}
-.login-button {
-    padding: 12px;
-    font-size: 1.1rem;
-}
-.login-footer {
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-    align-items: center;
-    margin-top: var(--padding-sm);
-}
-.forgot-password-link {
-    color: var(--accent-primary);
-    text-decoration: none;
-    font-size: 0.9rem;
-}
-.forgot-password-link:hover {
-    text-decoration: underline;
-}
-.login-info {
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-/* --- Modals (Bulk Add, Add Product) --- */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.modal-content {
-    background-color: var(--background-secondary);
-    padding: var(--padding-lg);
-    border-radius: var(--border-radius);
-    width: 90%;
-    max-width: 600px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-    max-height: 90vh;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: var(--padding-md);
-}
-.modal-header h3 {
-    font-size: 1.4rem;
-}
-.close-button {
-    background: none;
-    border: none;
-    font-size: 2rem;
-    cursor: pointer;
-    color: var(--text-secondary);
-}
-.close-button:hover {
-    color: var(--text-primary);
-}
-.modal-body {
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-}
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--padding-sm);
-    border-top: 1px solid var(--border-color);
-    padding-top: var(--padding-md);
-}
-
-.import-instructions {
-    background-color: var(--background-tertiary);
-    padding: var(--padding-md);
-    border-radius: var(--border-radius);
-    font-size: 0.9rem;
-}
-.import-instructions p {
-    margin-bottom: var(--padding-sm);
-}
-.import-instructions code {
-    background-color: var(--background-primary);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: monospace;
-}
-
-.file-upload-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--padding-sm);
-    padding: var(--padding-lg);
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius);
-    background-color: var(--background-tertiary);
-}
-
-.file-upload-container label.action-button-secondary {
-    cursor: pointer;
-    display: inline-block;
-    padding: var(--padding-sm) var(--padding-md);
-}
-
-.file-upload-container p {
-    color: var(--text-secondary);
-}
-
-/* --- Confirmation Modal Specifics --- */
-.confirmation-summary {
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-sm);
-}
-.summary-row {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--padding-sm) 0;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 1.1rem;
-}
-.summary-row:last-child {
-    border-bottom: none;
-}
-.summary-row span:first-child {
-    color: var(--text-secondary);
-}
-.summary-row.grand-total, .summary-row.new-balance {
-    font-weight: bold;
-    font-size: 1.2rem;
-}
-.summary-row.new-balance {
-    color: var(--accent-primary);
-}
-
-
-/* --- Customer Management Page --- */
-.customer-management-page {
-    height: calc(100vh - 100px); /* Adjust based on header/padding */
-}
-.customer-management-layout {
-    display: grid;
-    grid-template-columns: 350px 1fr;
-    gap: var(--padding-md);
-    height: 100%;
-    overflow: hidden;
-}
-.customer-list-panel {
-    background-color: var(--background-secondary);
-    border-radius: var(--border-radius);
-    padding: var(--padding-md);
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-    height: 100%;
-}
-.customer-search {
-    flex-shrink: 0;
-}
-.customer-list {
-    flex-grow: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.customer-list-item {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--padding-sm) var(--padding-md);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    width: 100%;
-    background: none;
-    border: none;
-    text-align: left;
-    color: var(--text-primary);
-}
-.customer-list-item:hover {
-    background-color: var(--background-tertiary);
-}
-.customer-list-item.active {
-    background-color: var(--accent-primary);
-    color: var(--background-secondary);
-}
-.customer-list-item.active .customer-mobile {
-    color: var(--background-tertiary);
-}
-.customer-name {
-    font-weight: 500;
-}
-.customer-mobile {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-}
-.customer-list-empty {
-    text-align: center;
-    padding: var(--padding-lg);
-    color: var(--text-secondary);
-}
-.customer-details-panel {
-    background-color: var(--background-secondary);
-    border-radius: var(--border-radius);
-    padding: var(--padding-lg);
-    height: 100%;
-    overflow-y: auto;
-}
-.customer-details-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-secondary);
-    font-size: 1.2rem;
-}
-.customer-details-view h3 {
-    font-size: 1.5rem;
-    margin-bottom: var(--padding-md);
-}
-.customer-details-view p {
-    font-size: 1.1rem;
-    margin-bottom: var(--padding-sm);
-}
-.purchase-history-placeholder {
-    margin-top: var(--padding-lg);
-    border-top: 1px solid var(--border-color);
-    padding-top: var(--padding-md);
-}
-
-/* Order Management Page */
-.order-management-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--padding-md);
-    align-items: flex-start;
-}
-.order-column {
-    display: flex;
-    flex-direction: column;
-    gap: var(--padding-md);
-}
-.order-column-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.status-badge {
-    padding: 4px 8px;
-    border-radius: var(--border-radius);
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-.status-badge.status-pending {
-    background-color: rgba(255, 193, 7, 0.2);
-    color: #ffc107;
-}
-.status-badge.status-fulfilled {
-    background-color: rgba(40, 167, 69, 0.2);
-    color: var(--success-color);
-}
-.status-badge.status-cancelled {
-    background-color: rgba(220, 53, 69, 0.2);
-    color: var(--danger-color);
-}
-.table-action-buttons {
-    display: flex;
-    gap: var(--padding-sm);
-}
-.table-action-buttons .action-button-secondary {
-    padding: 4px 8px;
-    font-size: 0.9rem;
-}
-.order-details-modal-body .order-details-summary {
-    display: flex;
-    justify-content: space-between;
-    background-color: var(--background-tertiary);
-    padding: var(--padding-md);
-    border-radius: var(--border-radius);
-    margin-bottom: var(--padding-md);
-}
-.order-details-modal-body h4 {
-    font-size: 1.1rem;
-    margin-bottom: var(--padding-sm);
-}
-.modal-footer .action-buttons-group {
-    display: flex;
-    gap: var(--padding-sm);
-}
-
-
-/* --- Other --- */
-.loading-container, .error-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: var(--padding-md);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.7; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-
-@media print {
-  body, .invoice-page-container {
-    background-color: #fff !important;
-    margin: 0;
-    padding: 0;
-  }
-  .app-header, .invoice-actions {
-    display: none !important;
-  }
-  .app-main {
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-  .invoice-paper {
-    box-shadow: none !important;
-    margin: 0 !important;
-    width: 100% !important;
-    height: auto !important;
-    padding: 0 !important;
-  }
-  .printable-area {
-      border: none !important;
-  }
-}
-
-@media (max-width: 768px) {
-    .app-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--padding-sm);
-    }
-    .header-user-info {
-        width: 100%;
-        justify-content: space-between;
-    }
-    .header-welcome-message {
-        display: none;
-    }
-    .new-sale-page {
-        height: auto;
-    }
-    .customer-details-new {
-        grid-template-columns: 1fr;
-    }
-    .new-sale-footer {

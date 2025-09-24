@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -1243,17 +1242,29 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                 <section className="customer-and-search-section">
                     <div className="sale-options-bar">
                         <div className="toggle-group">
-                            <label>Price Mode</label>
                             <div className="toggle-switch">
                                 <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
                                 <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
                             </div>
                         </div>
                         <div className="toggle-group">
-                            <label>Invoice Language</label>
                             <div className="toggle-switch">
                                 <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English' })}>English</button>
                                 <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
+                            </div>
+                        </div>
+                        <div className="toggle-group">
+                            <div className="toggle-switch">
+                                {[0, 1, 2].map(index => (
+                                    <button
+                                        key={index}
+                                        className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`}
+                                        onClick={() => onBillChange(index)}
+                                        aria-label={`Switch to bill ${index + 1}`}
+                                    >
+                                        {index + 1}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -1290,7 +1301,10 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions">
-                                {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>{p.name}</div>))}
+                                {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
+                                    <span>{p.name}</span>
+                                    <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
+                                </div>))}
                                 {showAddNewSuggestion && (
                                     <div
                                         className={`suggestion-item add-new-product-suggestion ${suggestions.length === activeSuggestion ? 'active' : ''}`}
@@ -1634,21 +1648,34 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                 </div>
             </div>
             <div className="invoice-actions">
-                <div className="invoice-main-actions"><button onClick={handlePrint} className="action-button-primary">Print</button><button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button><div className="whatsapp-group"><input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} /><button onClick={handleSendWhatsApp} className="action-button-primary">Send</button></div></div>
-                <div className="invoice-controls"><div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div><div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div><div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div><div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div><div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div></div>
-                <div className="finalize-actions-group">
-                    {isFinalized ? (
-                        <button className="finalize-button" disabled>
-                            Sale Recorded ✓
+                <div className="invoice-main-actions-container">
+                    <div className="invoice-main-actions">
+                        <button onClick={handlePrint} className="action-button-primary">Print</button>
+                        <button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button>
+                        <div className="whatsapp-group">
+                            <input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} />
+                            <button onClick={handleSendWhatsApp} className="action-button-primary">Send</button>
+                        </div>
+                    </div>
+                    <div className="finalize-actions-group">
+                        {isFinalized ? (
+                            <button className="finalize-button" disabled>Sale Recorded ✓</button>
+                        ) : (
+                            <button className="finalize-button" onClick={handleCompleteClick} disabled={isCompleting}>
+                                {isCompleting ? 'Completing...' : 'Complete Sale'}
+                            </button>
+                        )}
+                        <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">
+                            {isFinalized ? 'New Sale' : 'Back to Edit Sale'}
                         </button>
-                    ) : (
-                        <button className="finalize-button" onClick={handleCompleteClick} disabled={isCompleting}>
-                            {isCompleting ? 'Completing...' : 'Complete Sale'}
-                        </button>
-                    )}
-                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">
-                        {isFinalized ? 'New Sale' : 'Back to Edit Sale'}
-                    </button>
+                    </div>
+                </div>
+                <div className="invoice-controls">
+                    <div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div>
+                    <div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div>
+                    <div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div>
+                    <div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div>
+                    <div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div>
                 </div>
             </div>
         </div>
@@ -2736,7 +2763,9 @@ const App = () => {
         }
     
         if (newStatus === 'Fulfilled') {
-            const updatedProductsMap = new Map(allProducts.map(p => [p.id, { ...p }]));
+            // FIX: Explicitly typing `updatedProductsMap` to `Map<number, Product>` resolves issues where
+            // type inference was failing, causing `product` and `p` to be of type `unknown` and leading to property access errors.
+            const updatedProductsMap: Map<number, Product> = new Map(allProducts.map(p => [p.id, { ...p }]));
             let stockUpdateError = false;
     
             for (const item of orderToUpdate.items) {
