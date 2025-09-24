@@ -414,6 +414,23 @@ const formatQuantityForInvoice = (quantity: number) => (quantity || 0).toFixed(1
 const LOW_STOCK_THRESHOLD = 10;
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+function fuzzyMatch(searchTerm: string, textToSearch: string): boolean {
+    if (!searchTerm) return true;
+    if (!textToSearch) return false;
+    
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    const lowerText = textToSearch.toLowerCase();
+    let searchTermIndex = 0;
+
+    for (let i = 0; i < lowerText.length && searchTermIndex < lowerSearchTerm.length; i++) {
+        if (lowerText[i] === lowerSearchTerm[searchTermIndex]) {
+            searchTermIndex++;
+        }
+    }
+
+    return searchTermIndex === lowerSearchTerm.length;
+}
+
 // --- SYNC STATUS INDICATOR ---
 type SyncStatus = 'offline' | 'syncing' | 'synced' | 'error';
 type SyncStatusIndicatorProps = {
@@ -996,7 +1013,10 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     useEffect(() => {
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
-            const filtered = products.filter(p => p.name.toLowerCase().includes(lowercasedTerm) || (p.barcode && p.barcode.includes(lowercasedTerm)));
+            const filtered = products.filter(p => 
+                fuzzyMatch(lowercasedTerm, p.name) || 
+                (p.barcode && p.barcode.includes(lowercasedTerm))
+            );
             setSuggestions(filtered);
             setShowAddNewSuggestion(filtered.length === 0 && !products.some(p => p.barcode === searchTerm));
         } else {
