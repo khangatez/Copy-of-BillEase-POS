@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -9,14 +10,14 @@ declare var XLSX: any;
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-async function translateToTamil(text: string): Promise<string> {
+async function translateToTamilTransliteration(text: string): Promise<string> {
     if (!text || !text.trim()) {
         return '';
     }
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `Translate the following English product name to Tamil. Provide only the Tamil translation, without any English characters or explanations. For example, if the input is "Milk", the output should be "பால்". Input: "${text}"`,
+            contents: `Transliterate the following English product name into Tamil script. Provide only the Tamil script transliteration, without any explanations or other text. For example, if the input is "Milk", the output should be "மில்க்". Input: "${text}"`,
             config: {
                 temperature: 0.1,
                 thinkingConfig: { thinkingBudget: 0 }
@@ -24,19 +25,19 @@ async function translateToTamil(text: string): Promise<string> {
         });
         return response.text.trim();
     } catch (error) {
-        console.error("Error translating to Tamil:", error);
+        console.error("Error transliterating to Tamil:", error);
         return ''; // Return empty string on error, so UI doesn't break
     }
 }
 
-async function translateBatchToTamil(texts: string[]): Promise<string[]> {
+async function translateBatchToTamilTransliteration(texts: string[]): Promise<string[]> {
     if (!texts || texts.length === 0) {
         return [];
     }
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `Translate the following JSON array of English product names into a JSON array of Tamil translations. Maintain the exact same order and array length. Provide only the JSON array as your response, without any markdown formatting (like \`\`\`json). For example, if the input is ["Milk", "Sugar"], the output should be ["பால்", "சர்க்கரை"]. Input: ${JSON.stringify(texts)}`,
+            contents: `Transliterate the following JSON array of English product names into a JSON array of their Tamil script transliterations. Maintain the exact same order and array length. Provide only the JSON array as your response, without any markdown formatting. For example, if the input is ["Milk", "Sugar"], the output should be ["மில்க்", "ஷுகர்"]. Input: ${JSON.stringify(texts)}`,
             config: {
                 temperature: 0.1,
                 responseMimeType: "application/json",
@@ -59,7 +60,7 @@ async function translateBatchToTamil(texts: string[]): Promise<string[]> {
             return texts.map(() => ''); // Fallback
         }
     } catch (error) {
-        console.error("Error in batch translating to Tamil:", error);
+        console.error("Error in batch transliterating to Tamil:", error);
         return texts.map(() => ''); // Fallback on error
     }
 }
@@ -208,10 +209,10 @@ const initialNotes: Note[] = [
 
 const MOCK_PRODUCTS: Product[] = [
     { id: 1, shopId: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' },
-    { id: 2, shopId: 1, name: 'Milk', nameTamil: 'பால்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222' },
-    { id: 3, shopId: 2, name: 'Bread', nameTamil: 'ரொட்டி', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333' },
+    { id: 2, shopId: 1, name: 'Milk', nameTamil: 'மில்க்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222' },
+    { id: 3, shopId: 2, name: 'Bread', nameTamil: 'பிரெட்', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333' },
     { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444' },
-    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃபிரை பேன் பிளாஸ்டிக் கைப்பிடி', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555' },
+    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃப்ரை பேன் பிளாஸ்டிக் ஹேண்டில்', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555' },
 ];
 
 const MOCK_SALES: SaleData[] = [
@@ -577,7 +578,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
             if (newProductName.trim() && isOpen) {
                 setIsTranslating(true);
                 try {
-                    const tamilName = await translateToTamil(newProductName);
+                    const tamilName = await translateToTamilTransliteration(newProductName);
                     setNewProductNameTamil(tamilName);
                 } finally {
                     setIsTranslating(false);
@@ -686,7 +687,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                     const findHeader = (targetName: string) => headers.find(h => h.trim().toLowerCase() === targetName.toLowerCase());
 
                     const nameHeader = findHeader("English Description");
-                    const nameTamilHeader = findHeader("Tamil Description");
+                    const nameTamilHeader = findHeader("Tamil Description") || findHeader("Tanglish Description");
                     const b2bHeader = findHeader("B2B Price");
                     const b2cHeader = findHeader("B2C Price");
 
@@ -723,7 +724,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                     if (namesToTranslate.length > 0) {
                         setStatusMessage(`Translating ${namesToTranslate.length} product names in a single batch...`);
                         try {
-                            const translatedNames = await translateBatchToTamil(namesToTranslate);
+                            const translatedNames = await translateBatchToTamilTransliteration(namesToTranslate);
                             namesToTranslate.forEach((name, index) => {
                                 if (translatedNames[index]) {
                                     translationMap.set(name, translatedNames[index]);
@@ -789,11 +790,10 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                 </div>
                 <div className="modal-body">
                     <div className="import-instructions">
-                        <p>Upload an Excel file (.xlsx, .xls) with your product data.</p>
-                        <p>The importer will look for the following column headers (case-insensitive):</p>
+                        <p>Upload an Excel file (.xlsx, .xls) with your product data. The importer will look for the following column headers (case-insensitive):</p>
                         <code>English Description, Tamil Description, B2B Price, B2C Price</code>
                     </div>
-                    {statusMessage && <p className="login-error">{statusMessage}</p>}
+                    {statusMessage && <p className="status-message">{statusMessage}</p>}
                     
                     <div className="file-upload-container">
                         <input
@@ -804,8 +804,11 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                             disabled={isProcessing}
                             style={{ display: 'none' }}
                         />
-                        <label htmlFor="excel-file-input" className="action-button-secondary">
-                            {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Excel File'}
+                        <label htmlFor="excel-file-input" className="file-drop-zone">
+                             <svg className="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                             <span className="upload-text">
+                                {selectedFile ? `Selected: ${selectedFile.name}` : 'Drag & drop your Excel file here, or click to browse'}
+                             </span>
                         </label>
                     </div>
 
@@ -910,6 +913,46 @@ const CustomerHistoryModal: React.FC<CustomerHistoryModalProps> = ({ isOpen, onC
                 </div>
                 <div className="modal-footer">
                     <button className="action-button-secondary" type="button" onClick={onClose}>Close</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// --- CONFIRMATION MODAL ---
+type ConfirmationModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    isConfirming?: boolean;
+};
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Delete', isConfirming = false }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content confirmation-modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-body">
+                    <div className="confirmation-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    </div>
+                    <div className="confirmation-content">
+                        <h3>{title}</h3>
+                        <p>{message}</p>
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isConfirming}>
+                        Cancel
+                    </button>
+                    <button className="action-button-danger" onClick={onConfirm} disabled={isConfirming}>
+                        {isConfirming ? 'Deleting...' : confirmText}
+                    </button>
                 </div>
             </div>
         </div>
@@ -1074,7 +1117,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             return;
         }
 
-        const tamilName = await translateToTamil(name);
+        const tamilName = await translateToTamilTransliteration(name);
 
         const newProductData: Omit<Product, 'id' | 'shopId'> = {
             name: name,
@@ -1324,6 +1367,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             <div className="product-suggestions">
                                 {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
                                     <span>{p.name}</span>
+                                    {/* FIX: Corrected typo from cPrice to b2cPrice */}
                                     <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
                                 </div>))}
                                 {showAddNewSuggestion && (
@@ -1389,13 +1433,15 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmingDeleteIds, setConfirmingDeleteIds] = useState<number[] | null>(null);
 
     const filteredProducts = useMemo(() => {
         if (!searchTerm) return products;
         const lowercasedTerm = searchTerm.toLowerCase();
         return products.filter(p => 
             p.name.toLowerCase().includes(lowercasedTerm) ||
-            (p.nameTamil && p.nameTamil.toLowerCase().includes(lowercasedTerm)) ||
+            (p.nameTamil && p.nameTamil.includes(searchTerm)) ||
             (p.barcode && p.barcode.toLowerCase().includes(lowercasedTerm)) ||
             (p.category && p.category.toLowerCase().includes(lowercasedTerm)) ||
             (p.subcategory && p.subcategory.toLowerCase().includes(lowercasedTerm))
@@ -1429,14 +1475,31 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     
     const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProducts.has(p.id));
 
-    const handleDeleteSelected = async () => {
-        if (window.confirm(`Are you sure you want to delete ${selectedProducts.size} selected products? This action cannot be undone.`)) {
-            try {
-                await onDeleteProducts(Array.from(selectedProducts));
-                setSelectedProducts(new Set());
-            } catch (error) {
-                alert(`Error deleting products: ${error instanceof Error ? error.message : String(error)}`);
-            }
+    const handleDeleteClick = (productId: number) => {
+        setConfirmingDeleteIds([productId]);
+    };
+
+    const handleDeleteSelectedClick = () => {
+        if (selectedProducts.size > 0) {
+            setConfirmingDeleteIds(Array.from(selectedProducts));
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!confirmingDeleteIds) return;
+        setIsDeleting(true);
+        try {
+            await onDeleteProducts(confirmingDeleteIds);
+            setSelectedProducts(prev => {
+                const newSet = new Set(prev);
+                confirmingDeleteIds.forEach(id => newSet.delete(id));
+                return newSet;
+            });
+        } catch (error) {
+            alert(`Error deleting products: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDeleting(false);
+            setConfirmingDeleteIds(null);
         }
     };
 
@@ -1502,12 +1565,21 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
         <div className="page-container">
             <AddProductModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAddProduct={onAddProduct} />
             <ImportProductsModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onBulkAdd={onBulkAddProducts} />
+            <ConfirmationModal
+                isOpen={!!confirmingDeleteIds}
+                onClose={() => setConfirmingDeleteIds(null)}
+                onConfirm={handleConfirmDelete}
+                title="Confirm Deletion"
+                message={`Are you sure you want to delete ${confirmingDeleteIds?.length} product(s)? This action cannot be undone.`}
+                isConfirming={isDeleting}
+                confirmText="Yes, Delete"
+            />
             <div className="page-header">
                 <h2 className="page-title">Product Inventory</h2>
                 <div className="page-header-actions">
                     {selectedProducts.size > 0 && (
-                        <button className="action-button-secondary danger" onClick={handleDeleteSelected}>
-                            Delete Selected ({selectedProducts.size})
+                        <button className="action-button-danger" onClick={handleDeleteSelectedClick} disabled={isDeleting}>
+                            {isDeleting ? 'Deleting...' : `Delete Selected (${selectedProducts.size})`}
                         </button>
                     )}
                     <button className="action-button-secondary" onClick={() => setIsImportModalOpen(true)}>Import From Excel</button>
@@ -1542,11 +1614,12 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                 <th>B2C Price</th>
                                 <th>Stock</th>
                                 <th>Barcode</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredProducts.length === 0 && (
-                                <tr><td colSpan={10} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
+                                <tr><td colSpan={11} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
                             )}
                             {filteredProducts.map((p, index) => (
                                 <tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}>
@@ -1560,6 +1633,13 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                                     <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
                                     <td data-label="Stock">{p.stock}</td>
                                     <td data-label="Barcode">{p.barcode || 'N/A'}</td>
+                                    <td data-label="Actions">
+                                        <div className="table-action-buttons">
+                                            <button className="action-button-danger" onClick={() => handleDeleteClick(p.id)} disabled={isDeleting}>
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1606,7 +1686,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     if (!saleData) return (<div className="page-container"><h2 className="page-title">Invoice</h2><p>No sale data available.</p><button onClick={() => onNavigate('New Sale')} className="action-button-primary">Back to Sale</button></div>);
     const { customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode, grandTotal, previousBalance, totalBalanceDue, amountPaid, grossTotal, returnTotal, returnReason, paymentDetailsEntered } = saleData;
     const regularItems = saleItems.filter(item => !item.isReturn);
-    const returnedItems = saleItems.filter(item => item.isReturn);
+    const returnedItems = saleItems.filter(item => !item.isReturn);
     const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const handlePrint = () => window.print();
@@ -2432,7 +2512,33 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToForgotPasswo
             sessionStorage.setItem('authToken', token); onLogin(user);
         } catch (err) { setError(err instanceof Error ? err.message : 'Invalid credentials'); setIsLoggingIn(false); }
     };
-    return (<div className="login-container"><form onSubmit={handleSubmit} className="login-form"><h2>BillEase POS Login</h2>{error && <p className="login-error">{error}</p>}<div className="form-group"><label htmlFor="username">Username</label><input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} /></div><div className="form-group"><label htmlFor="password">Password</label><input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} /></div><button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>{isLoggingIn ? 'Logging in...' : 'Login'}</button><div className="login-footer"><a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a><div className="login-info"><p>Hint: superadmin/password, admin1/password, cashier1/password</p></div></div></form></div>);
+    return (
+        <div className="login-container">
+            <div className="login-card">
+                <form onSubmit={handleSubmit} className="login-form">
+                    <h2>BillEase POS Login</h2>
+                    {error && <p className="login-error">{error}</p>}
+                    <div className="form-group">
+                        <label htmlFor="username">Username</label>
+                        <input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} autoFocus />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="password">Password</label>
+                        <input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} />
+                    </div>
+                    <button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>
+                        {isLoggingIn ? 'Logging in...' : 'Login'}
+                    </button>
+                    <div className="login-footer">
+                        <a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a>
+                        <div className="login-info">
+                            <p>Hint: superadmin/password</p>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 };
 
 type ForgotPasswordPageProps = { onForgotPasswordRequest: (usernameOrEmail: string) => Promise<void>; onNavigateToLogin: () => void; };
