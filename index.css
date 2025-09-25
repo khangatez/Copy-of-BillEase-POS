@@ -1,4 +1,5 @@
 
+
 :root {
   --font-family: 'Inter', sans-serif;
   --border-radius: 6px;
@@ -812,16 +813,24 @@ body {
 .sales-grid {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed; /* Added for column width control */
-}
-/* Set specific width for S.No column */
-.sales-grid th:first-child, .sales-grid td:first-child {
-    width: 60px;
+  table-layout: fixed;
 }
 .sales-grid th, .sales-grid td {
   padding: 12px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
+}
+.sales-grid th:nth-child(1), .sales-grid td:nth-child(1) { width: 5%; } /* S.No */
+.sales-grid th:nth-child(2), .sales-grid td:nth-child(2) { width: 40%; } /* Description */
+.sales-grid th:nth-child(3), .sales-grid td:nth-child(3) { width: 12%; } /* Quantity */
+.sales-grid th:nth-child(4), .sales-grid td:nth-child(4) { width: 12%; } /* Price */
+.sales-grid th:nth-child(5), .sales-grid td:nth-child(5) { width: 12%; } /* Total */
+.sales-grid th:nth-child(6), .sales-grid td:nth-child(6) { width: 8%;  text-align: center;}  /* Return */
+.sales-grid th:nth-child(7), .sales-grid td:nth-child(7) { width: 11%; text-align: center; } /* Actions */
+
+.sales-grid td[data-label="Description"] {
+  white-space: normal;
+  word-break: break-word;
 }
 .sales-grid thead {
     background-color: var(--background-tertiary);
@@ -835,8 +844,19 @@ body {
 .sales-grid td .input-field {
   padding: 6px;
   text-align: right;
-  max-width: 100px;
 }
+.sales-grid td .input-field[data-field="name"] {
+    width: 100%;
+    text-align: left;
+    background-color: transparent;
+    border: 1px solid transparent;
+}
+.sales-grid td .input-field[data-field="name"]:not(:disabled):focus {
+    background-color: var(--background-tertiary);
+    border-color: var(--accent-primary);
+}
+
+
 .sales-grid tr.is-return {
     background-color: rgba(220, 53, 69, 0.05);
     color: var(--text-secondary);
@@ -854,7 +874,7 @@ body {
     border-radius: 50%;
     width: 28px;
     height: 28px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;

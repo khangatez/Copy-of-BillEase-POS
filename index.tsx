@@ -1394,7 +1394,17 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             {saleItems.map((item, index) => (
                                 <tr key={`${item.productId}-${index}`} className={item.isReturn ? 'is-return' : ''}>
                                     <td data-label="S.No">{index + 1}</td>
-                                    <td data-label="Description">{item.name}</td>
+                                    <td data-label="Description">
+                                        <input
+                                            type="text"
+                                            className="input-field"
+                                            data-field="name"
+                                            value={item.name}
+                                            onChange={e => handleItemUpdate(index, 'name', e.target.value)}
+                                            disabled={userRole !== 'super_admin'}
+                                            aria-label={`Description for item ${index + 1}`}
+                                        />
+                                    </td>
                                     <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'quantity')} aria-label={`Quantity for ${item.name}`} step="0.001" /></td>
                                     <td data-label="Price"><input type="number" className="input-field" data-field="price" value={item.price} onChange={e => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'price')} aria-label={`Price for ${item.name}`} step="0.01" disabled={userRole !== 'super_admin'} /></td>
                                     <td data-label="Total">{formatNumberForInvoice(item.quantity * item.price)}</td>
