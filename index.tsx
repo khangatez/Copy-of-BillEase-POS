@@ -1696,7 +1696,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
     if (!saleData) return (<div className="page-container"><h2 className="page-title">Invoice</h2><p>No sale data available.</p><button onClick={() => onNavigate('New Sale')} className="action-button-primary">Back to Sale</button></div>);
     const { customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode, grandTotal, previousBalance, totalBalanceDue, amountPaid, grossTotal, returnTotal, returnReason, paymentDetailsEntered } = saleData;
     const regularItems = saleItems.filter(item => !item.isReturn);
-    const returnedItems = saleItems.filter(item => !item.isReturn);
+    const returnedItems = saleItems.filter(item => item.isReturn);
     const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
     const handlePrint = () => window.print();
