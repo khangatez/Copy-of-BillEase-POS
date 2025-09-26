@@ -477,7 +477,7 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
   
   const getMenuItems = () => {
     const superAdminMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Manage Users'];
-    const adminMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Balance Due'];
+    const adminMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due'];
     const cashierMenuItems = ['New Sale'];
     switch(currentUser.role) {
         case 'super_admin': return superAdminMenuItems;
