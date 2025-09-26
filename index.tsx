@@ -2556,9 +2556,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToForgotPasswo
                     </button>
                     <div className="login-footer">
                         <a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a>
-                        <div className="login-info">
-                            <p>Hint: superadmin/password</p>
-                        </div>
                     </div>
                 </form>
             </div>

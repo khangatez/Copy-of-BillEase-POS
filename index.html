@@ -22,10 +22,13 @@
   }
 }
 </script>
+<!-- Added Babel to transpile JSX/TSX in the browser -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script type="module" src="index.tsx"></script>
+  <!-- Changed script type to allow Babel to process it -->
+  <script type="text/babel" data-type="module" src="index.tsx"></script>
 </body>
 </html>
