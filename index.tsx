@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -1167,15 +1168,26 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         }
     };
     const handleItemUpdate = (index: number, field: keyof SaleItem, value: any) => {
-        const updatedItems = [...saleItems]; (updatedItems[index] as any)[field] = value;
+        const updatedItems = [...saleItems];
+        (updatedItems[index] as any)[field] = value;
         onSessionUpdate({ saleItems: updatedItems });
-        if (field === 'price' || field === 'name') {
-            if (userRole !== 'super_admin') return;
+    
+        // Only super_admin can persist changes to product master data from the sales grid
+        if ((field === 'price' || field === 'name') && userRole === 'super_admin') {
             const item = updatedItems[index];
             const productToUpdate = products.find(p => p.id === item.productId);
             if (!productToUpdate) return;
-            if (field === 'price' && productToUpdate.b2cPrice !== value) {
-                onUpdateProduct({ ...productToUpdate, b2cPrice: value });
+    
+            if (field === 'price') {
+                const priceValue = typeof value === 'number' ? value : parseFloat(value);
+                if (isNaN(priceValue)) return;
+                
+                // Respect the current price mode when updating the product's price
+                if (priceMode === 'B2C' && productToUpdate.b2cPrice !== priceValue) {
+                    onUpdateProduct({ ...productToUpdate, b2cPrice: priceValue });
+                } else if (priceMode === 'B2B' && productToUpdate.b2bPrice !== priceValue) {
+                    onUpdateProduct({ ...productToUpdate, b2bPrice: priceValue });
+                }
             } else if (field === 'name' && productToUpdate.name !== value) {
                 onUpdateProduct({ ...productToUpdate, name: value });
             }
@@ -1367,7 +1379,6 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             <div className="product-suggestions">
                                 {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
                                     <span>{p.name}</span>
-                                    {/* FIX: Corrected typo from cPrice to b2cPrice */}
                                     <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
                                 </div>))}
                                 {showAddNewSuggestion && (
@@ -1447,15 +1458,19 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     const [confirmingDeleteIds, setConfirmingDeleteIds] = useState<number[] | null>(null);
 
     const filteredProducts = useMemo(() => {
-        if (!searchTerm) return products;
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return products.filter(p => 
-            p.name.toLowerCase().includes(lowercasedTerm) ||
-            (p.nameTamil && p.nameTamil.includes(searchTerm)) ||
-            (p.barcode && p.barcode.toLowerCase().includes(lowercasedTerm)) ||
-            (p.category && p.category.toLowerCase().includes(lowercasedTerm)) ||
-            (p.subcategory && p.subcategory.toLowerCase().includes(lowercasedTerm))
-        );
+        const filtered = searchTerm
+            ? products.filter(p => {
+                const lowercasedTerm = searchTerm.toLowerCase();
+                return p.name.toLowerCase().includes(lowercasedTerm) ||
+                    (p.nameTamil && p.nameTamil.includes(searchTerm)) ||
+                    (p.barcode && p.barcode.toLowerCase().includes(lowercasedTerm)) ||
+                    (p.category && p.category.toLowerCase().includes(lowercasedTerm)) ||
+                    (p.subcategory && p.subcategory.toLowerCase().includes(lowercasedTerm));
+            })
+            : products;
+        
+        // Sort alphabetically by product name for easier scanning
+        return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
     }, [products, searchTerm]);
 
     const handleSelectProduct = (productId: number) => {
@@ -2912,8 +2927,6 @@ const App = () => {
         }
     
         if (newStatus === 'Fulfilled') {
-            // FIX: Explicitly typing `updatedProductsMap` to `Map<number, Product>` resolves issues where
-            // type inference was failing, causing `product` and `p` to be of type `unknown` and leading to property access errors.
             const updatedProductsMap: Map<number, Product> = new Map(allProducts.map(p => [p.id, { ...p }]));
             let stockUpdateError = false;
     
