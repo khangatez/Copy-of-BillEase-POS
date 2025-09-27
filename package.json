@@ -1,7 +1,8 @@
 {
   "name": "copy-of-billease-pos",
+  "description": "A Point of Sale application for managing sales, inventory, and customers.",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,18 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "jspdf": "2.5.1",
-    "html2canvas": "1.4.1",
-    "pdfjs-dist": "3.11.174",
-    "html5-qrcode": "2.3.8",
-    "@google/genai": "^1.20.0"
+    "@google/genai": "^1.20.0",
+    "html5-qrcode": "^2.3.8",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5"
   }
 }
