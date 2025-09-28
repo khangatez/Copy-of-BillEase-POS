@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -58,12 +57,23 @@ async function translateBatchToTamilTransliteration(texts: string[]): Promise<st
              jsonString = jsonString.substring(3, jsonString.length - 3).trim();
         }
 
-        const translatedTexts = JSON.parse(jsonString);
+        const parsedJson = JSON.parse(jsonString);
+        let translatedTexts: any[] | undefined;
+
+        if (Array.isArray(parsedJson)) {
+            translatedTexts = parsedJson;
+        } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+            // If the model wraps the array in an object, find the array.
+            const arrayProperty = Object.values(parsedJson).find(value => Array.isArray(value));
+            if (arrayProperty && Array.isArray(arrayProperty)) {
+                translatedTexts = arrayProperty;
+            }
+        }
 
         if (Array.isArray(translatedTexts) && translatedTexts.length === texts.length) {
             return translatedTexts.map(t => String(t));
         } else {
-            console.error("Batch translation response mismatch:", { expected: texts.length, received: translatedTexts.length });
+            console.error("Batch translation response mismatch:", { expected: texts.length, received: translatedTexts?.length, response: parsedJson });
             return texts.map(() => ''); // Fallback
         }
     } catch (error) {
@@ -1100,22 +1110,22 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     }, [isScannerOpen, products]);
 
     useEffect(() => {
-        if (activeSuggestion < 0 || !suggestionsContainerRef.current) return;
-
         const container = suggestionsContainerRef.current;
-        const activeItem = container.children[activeSuggestion] as HTMLElement;
+        if (activeSuggestion > -1 && container) {
+            const activeItem = container.children[activeSuggestion] as HTMLElement;
+            if (activeItem) {
+                const itemTop = activeItem.offsetTop;
+                const itemBottom = itemTop + activeItem.offsetHeight;
+                const containerVisibleTop = container.scrollTop;
+                const containerVisibleBottom = container.scrollTop + container.clientHeight;
 
-        if (activeItem) {
-            const itemTop = activeItem.offsetTop;
-            const itemBottom = itemTop + activeItem.offsetHeight;
-
-            const containerScrollTop = container.scrollTop;
-            const containerVisibleHeight = container.offsetHeight;
-
-            if (itemTop < containerScrollTop) {
-                container.scrollTop = itemTop;
-            } else if (itemBottom > (containerScrollTop + containerVisibleHeight)) {
-                container.scrollTop = itemBottom - containerVisibleHeight;
+                if (itemTop < containerVisibleTop) {
+                    // Item is hidden above, scroll to bring it to the top
+                    container.scrollTop = itemTop;
+                } else if (itemBottom > containerVisibleBottom) {
+                    // Item is hidden below, scroll to bring it to the bottom
+                    container.scrollTop = itemBottom - container.clientHeight;
+                }
             }
         }
     }, [activeSuggestion]);
