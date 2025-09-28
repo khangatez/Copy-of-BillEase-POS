@@ -2763,20 +2763,28 @@ const App = () => {
         sessionStorage.setItem('currentUser', JSON.stringify(user));
         setIsLoading(true); setAppError(null);
         try {
-            const [shopsData, customersData, usersData, productsData, salesData] = await Promise.all([
-                api.getShops(), api.getCustomers(), user.role === 'super_admin' ? api.getUsers() : Promise.resolve([]),
-                api.getProducts(), api.getSales(),
-            ]);
-            await Promise.all([
-                dbManager.clear('shops'), dbManager.clear('customers'), dbManager.clear('users'),
-                dbManager.clear('products'), dbManager.clear('sales'), dbManager.clear('expenses'),
-                dbManager.clear('purchaseOrders'), dbManager.clear('salesOrders')
-            ]);
-            await Promise.all([
-                dbManager.bulkPut('shops', shopsData || []), dbManager.bulkPut('customers', customersData || []),
-                dbManager.bulkPut('users', usersData || []), dbManager.bulkPut('products', productsData || []),
-                dbManager.bulkPut('sales', (salesData || []).map(s => ({ ...s, date: new Date(s.date) }))),
-            ]);
+            // Check if data already exists to prevent overwriting on every login
+            const existingProducts = await dbManager.getAll<Product>('products');
+
+            // Only perform the initial data sync if the database appears to be empty.
+            // This preserves user-added data (like imported products) across sessions.
+            if (existingProducts.length === 0) {
+                const [shopsData, customersData, usersData, productsData, salesData] = await Promise.all([
+                    api.getShops(), api.getCustomers(), user.role === 'super_admin' ? api.getUsers() : Promise.resolve([]),
+                    api.getProducts(), api.getSales(),
+                ]);
+                await Promise.all([
+                    dbManager.clear('shops'), dbManager.clear('customers'), dbManager.clear('users'),
+                    dbManager.clear('products'), dbManager.clear('sales'), dbManager.clear('expenses'),
+                    dbManager.clear('purchaseOrders'), dbManager.clear('salesOrders')
+                ]);
+                await Promise.all([
+                    dbManager.bulkPut('shops', shopsData || []), dbManager.bulkPut('customers', customersData || []),
+                    dbManager.bulkPut('users', usersData || []), dbManager.bulkPut('products', productsData || []),
+                    dbManager.bulkPut('sales', (salesData || []).map(s => ({ ...s, date: new Date(s.date) }))),
+                ]);
+            }
+
             setCurrentUser(user);
             if (user.role === 'super_admin') setCurrentPage('Admin Dashboard');
             else if (user.role === 'admin') setCurrentPage('Reports');
