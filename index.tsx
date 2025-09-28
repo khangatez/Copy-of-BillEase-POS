@@ -1052,6 +1052,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     const prevSaleItemsLengthRef = useRef(saleItems.length);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const recognitionRef = useRef<any>(null);
+    const suggestionsContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const foundCustomer = customers.find(c => c.mobile === customerMobile);
@@ -1097,6 +1098,27 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         }
         return () => { if (scannerRef.current) scannerRef.current.clear().catch(err => console.error("Failed to clear scanner on unmount", err)); };
     }, [isScannerOpen, products]);
+
+    useEffect(() => {
+        if (activeSuggestion < 0 || !suggestionsContainerRef.current) return;
+
+        const container = suggestionsContainerRef.current;
+        const activeItem = container.children[activeSuggestion] as HTMLElement;
+
+        if (activeItem) {
+            const itemTop = activeItem.offsetTop;
+            const itemBottom = itemTop + activeItem.offsetHeight;
+
+            const containerScrollTop = container.scrollTop;
+            const containerVisibleHeight = container.offsetHeight;
+
+            if (itemTop < containerScrollTop) {
+                container.scrollTop = itemTop;
+            } else if (itemBottom > (containerScrollTop + containerVisibleHeight)) {
+                container.scrollTop = itemBottom - containerVisibleHeight;
+            }
+        }
+    }, [activeSuggestion]);
 
     const handleProductSelect = (product: Product) => {
         const newItems = [...saleItems];
@@ -1388,7 +1410,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
-                            <div className="product-suggestions">
+                            <div className="product-suggestions" ref={suggestionsContainerRef}>
                                 {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
                                     <span>{p.name}</span>
                                     <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
