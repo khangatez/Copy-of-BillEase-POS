@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -3104,7 +3105,8 @@ const App = () => {
     const handleCompleteSale = async (): Promise<void> => {
         if (!pendingSaleData) return;
         
-        const productMap = new Map(allProducts.map(p => [p.id, { ...p }]));
+        // FIX: Explicitly typing productMap ensures product is correctly typed as Product, not unknown.
+        const productMap: Map<number, Product> = new Map(allProducts.map(p => [p.id, { ...p }]));
         const updatedProducts: Product[] = [];
 
         pendingSaleData.saleItems.forEach(item => {
@@ -3238,7 +3240,8 @@ const App = () => {
             setState(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
 
             if (newStatus === 'Fulfilled') {
-                const productMap = new Map(allProducts.map(p => [p.id, { ...p }]));
+                // FIX: Explicitly typing productMap ensures product is correctly typed as Product, not unknown.
+                const productMap: Map<number, Product> = new Map(allProducts.map(p => [p.id, { ...p }]));
                 const updatedProducts: Product[] = [];
                 
                 order.items.forEach(item => {
