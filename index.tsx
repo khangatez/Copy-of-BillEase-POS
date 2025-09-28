@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 declare var XLSX: any;
 
@@ -42,6 +42,12 @@ async function translateBatchToTamilTransliteration(texts: string[]): Promise<st
             config: {
                 temperature: 0.1,
                 responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.STRING,
+                    },
+                },
             }
         });
 
@@ -209,11 +215,11 @@ const initialNotes: Note[] = [
 ];
 
 const MOCK_PRODUCTS: Product[] = [
-    { id: 1, shopId: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111' },
-    { id: 2, shopId: 1, name: 'Milk', nameTamil: 'மில்க்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222' },
-    { id: 3, shopId: 2, name: 'Bread', nameTamil: 'பிரெட்', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333' },
-    { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444' },
-    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃப்ரை பேன் பிளாஸ்டிக் ஹேண்டில்', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555' },
+    { id: 1, shopId: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', b2bPrice: 0.40, b2cPrice: 0.50, stock: 100, barcode: '1111', category: 'Fruits' },
+    { id: 2, shopId: 1, name: 'Milk', nameTamil: 'மில்க்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222', category: 'Dairy' },
+    { id: 3, shopId: 2, name: 'Bread', nameTamil: 'பிரெட்', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333', category: 'Bakery' },
+    { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444', category: 'Beverages' },
+    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃப்ரை பேன் பிளாஸ்டிக் ஹேண்டில்', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555', category: 'Kitchenware' },
 ];
 
 const MOCK_SALES: SaleData[] = [
@@ -477,8 +483,8 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const getMenuItems = () => {
-    const superAdminMenuItems = ['Admin Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Manage Users'];
-    const adminMenuItems = ['New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Reports', 'Expenses', 'Notes', 'Settings', 'Balance Due'];
+    const superAdminMenuItems = ['Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Expenses', 'Notes', 'Settings', 'Balance Due', 'Manage Users'];
+    const adminMenuItems = ['Dashboard', 'New Sale', 'Product Inventory', 'Customer Management', 'Order Management', 'Expenses', 'Notes', 'Settings', 'Balance Due'];
     const cashierMenuItems = ['New Sale'];
     switch(currentUser.role) {
         case 'super_admin': return superAdminMenuItems;
@@ -691,6 +697,8 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                     const nameTamilHeader = findHeader("Tamil Description") || findHeader("Tanglish Description");
                     const b2bHeader = findHeader("B2B Price");
                     const b2cHeader = findHeader("B2C Price");
+                    const categoryHeader = findHeader("Category");
+
 
                     if (!nameHeader) {
                         throw new Error("Column 'English Description' not found. Please check the Excel file header.");
@@ -707,7 +715,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                             b2cPrice: b2cHeader ? parseFloat(row[b2cHeader]) || 0 : 0,
                             stock: 0,
                             barcode: undefined,
-                            category: undefined,
+                            category: categoryHeader ? String(row[categoryHeader] || '') : undefined,
                             subcategory: undefined,
                         };
                     }).filter((p): p is Omit<Product, 'id' | 'shopId'> => p !== null);
@@ -792,7 +800,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                 <div className="modal-body">
                     <div className="import-instructions">
                         <p>Upload an Excel file (.xlsx, .xls) with your product data. The importer will look for the following column headers (case-insensitive):</p>
-                        <code>English Description, Tamil Description, B2B Price, B2C Price</code>
+                        <code>English Description, Tamil Description, B2B Price, B2C Price, Category</code>
                     </div>
                     {statusMessage && <p className="status-message">{statusMessage}</p>}
                     
@@ -821,6 +829,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                                     <tr>
                                         <th>English Description</th>
                                         <th>Tamil Description</th>
+                                        <th>Category</th>
                                         <th>B2B Price</th>
                                         <th>B2C Price</th>
                                     </tr>
@@ -830,6 +839,7 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                                         <tr key={index}>
                                             <td data-label="English Description">{p.name}</td>
                                             <td data-label="Tamil Description">{p.nameTamil}</td>
+                                            <td data-label="Category">{p.category}</td>
                                             <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
                                             <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
                                         </tr>
@@ -1864,34 +1874,6 @@ const BalanceDuePage: React.FC<BalanceDuePageProps> = ({ customersWithBalance })
 };
 
 
-// --- REPORTS PAGE COMPONENT ---
-type ReportsPageProps = { salesHistory: SaleData[]; onViewInvoice: (sale: SaleData) => void; };
-const ReportsPage: React.FC<ReportsPageProps> = ({ salesHistory, onViewInvoice }) => {
-    const [filterPeriod, setFilterPeriod] = useState<'today' | 'yesterday' | '7days' | '1month'>('today');
-    const filteredSales = useMemo(() => {
-        const now = new Date(); const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
-        const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
-        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        return salesHistory.filter(sale => {
-            const saleDate = new Date(sale.date);
-            switch (filterPeriod) {
-                case 'today': return saleDate >= todayStart;
-                case 'yesterday': return saleDate >= yesterdayStart && saleDate < todayStart;
-                case '7days': return saleDate >= sevenDaysAgo;
-                case '1month': return saleDate >= oneMonthAgo;
-                default: return true;
-            }
-        });
-    }, [salesHistory, filterPeriod]);
-    const reportStats = useMemo(() => {
-        const totalSales = filteredSales.reduce((acc, sale) => acc + (sale.grandTotal || 0), 0);
-        const itemsSold = filteredSales.reduce((acc, sale) => acc + sale.saleItems.reduce((itemAcc, item) => itemAcc + (item.isReturn ? -item.quantity : item.quantity), 0), 0);
-        return { totalSales, itemsSold, transactionCount: filteredSales.length };
-    }, [filteredSales]);
-    return (<div className="page-container reports-page"><h2 className="page-title">Sales Reports</h2><div className="report-filters"><div className="form-group"><label htmlFor="report-period">Select Period</label><select id="report-period" value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="select-field"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7days">Last 7 Days</option><option value="1month">Last 1 Month</option></select></div></div><div className="summary-cards"><div className="summary-card"><h3>Total Sales</h3><p>{formatCurrency(reportStats.totalSales)}</p></div><div className="summary-card"><h3>Items Sold</h3><p>{reportStats.itemsSold.toFixed(3)}</p></div><div className="summary-card"><h3>Transactions</h3><p>{reportStats.transactionCount}</p></div></div><div className="inventory-list-container"><table className="inventory-table sales-history-table"><thead><tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Amount</th><th>Actions</th></tr></thead><tbody>{filteredSales.map(sale => (<tr key={sale.id}><td data-label="Date">{new Date(sale.date).toLocaleString()}</td><td data-label="Customer">{sale.customerName || 'N/A'} ({sale.customerMobile || 'N/A'})</td><td data-label="Items">{sale.saleItems.length}</td><td data-label="Total Amount">{formatCurrency(sale.grandTotal)}</td><td data-label="Actions"><button className="action-button-secondary" onClick={() => onViewInvoice(sale)}>View</button></td></tr>))}</tbody></table></div></div>);
-};
-
 // --- EXPENSES PAGE COMPONENT ---
 type ExpensesPageProps = {
     expenses: Expense[];
@@ -1987,33 +1969,259 @@ const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, o
     return (<div className="page-container page-container-full-width"><h2 className="page-title">User & Shop Management</h2><div className="shop-management-layout"><div className="management-card"><h3>Manage Shops</h3><form onSubmit={handleAddShop}><div className="form-group"><label htmlFor="new-shop-name">New Shop Name</label><input id="new-shop-name" type="text" className="input-field" value={newShopName} onChange={e => setNewShopName(e.target.value)} placeholder="e.g., Downtown Branch" /></div><button type="submit" className="action-button-primary">Add Shop</button></form><div className="shop-list-container"><h4>Existing Shops</h4><ul className="shop-list">{shops.map(shop => (<li key={shop.id} className="shop-list-item">{editingShopId === shop.id ? (<div className="edit-shop-form"><input type="text" className="input-field" value={editingShopName} onChange={(e) => setEditingShopName(e.target.value)} /><div className="edit-shop-actions"><button className="action-button-secondary" onClick={handleCancelEdit}>Cancel</button><button className="action-button-primary" onClick={() => handleSaveEdit(shop.id)}>Save</button></div></div>) : (<><span>{shop.name}</span><button className="action-button-secondary" onClick={() => handleStartEdit(shop)}>Edit</button></>)}</li>))}</ul></div></div><div className="management-card"><h3>Manage Users</h3><form onSubmit={handleAddUser}><div className="form-group"><label htmlFor="new-username">Username</label><input id="new-username" type="text" className="input-field" value={newUsername} onChange={e => setNewUsername(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-email">Email</label><input id="new-email" type="email" className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} /></div><div className="form-group"><label htmlFor="new-password">Password</label><input id="new-password" type="text" className="input-field" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-user-role">Role</label><select id="new-user-role" className="select-field" value={newUserRole} onChange={e => setNewUserRole(e.target.value as 'admin' | 'cashier')}><option value="cashier">Cashier</option><option value="admin">Admin</option></select></div><div className="form-group"><label htmlFor="new-user-shop">Shop</label><select id="new-user-shop" className="select-field" value={newUserShopId} onChange={e => setNewUserShopId(Number(e.target.value))} required>{shops.map(shop => (<option key={shop.id} value={shop.id}>{shop.name}</option>))}</select></div><button type="submit" className="action-button-primary">Add User</button></form><div className="user-list-container"><table className="inventory-table"><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Shop</th><th>Actions</th></tr></thead><tbody>{users.filter(u => u.role !== 'super_admin').map(user => (<tr key={user.username}><td data-label="Username">{user.username}</td><td data-label="Email">{user.email || 'N/A'}</td><td data-label="Role">{user.role}</td><td data-label="Shop">{shops.find(s => s.id === user.shopId)?.name || 'N/A'}</td><td data-label="Actions"><button className="action-button-secondary" onClick={() => handleResetPasswordClick(user.username)}>Reset Password</button></td></tr>))}</tbody></table></div></div></div></div>);
 };
 
-// --- ADMIN DASHBOARD PAGE ---
-type AdminDashboardPageProps = { allSalesHistory: SaleData[]; allProducts: Product[]; shops: Shop[]; };
-const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ allSalesHistory, allProducts, shops }) => {
-    const [filterPeriod, setFilterPeriod] = useState<'today' | 'yesterday' | '7days' | '1month'>('today');
-    const filteredSales = useMemo(() => {
-        const now = new Date(); const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const yesterdayStart = new Date(todayStart.getTime() - 24*60*60*1000); const sevenDaysAgo = new Date(todayStart.getTime() - 6*24*60*60*1000); const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        return allSalesHistory.filter(sale => {
-            const saleDate = new Date(sale.date);
-            switch (filterPeriod) {
-                case 'today': return saleDate >= todayStart;
-                case 'yesterday': return saleDate >= yesterdayStart && saleDate < todayStart;
-                case '7days': return saleDate >= sevenDaysAgo;
-                case '1month': return saleDate >= oneMonthAgo;
-                default: return true;
-            }
-        });
-    }, [allSalesHistory, filterPeriod]);
-    const { totalSales, transactionCount, salesByShop, topProducts } = useMemo(() => {
-        const totalSales = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
-        const salesByShop = shops.map(shop => ({ shopId: shop.id, shopName: shop.name, totalSales: filteredSales.filter(s => s.shopId === shop.id).reduce((acc, sale) => acc + sale.grandTotal, 0), transactionCount: filteredSales.filter(s => s.shopId === shop.id).length })).sort((a, b) => b.totalSales - a.totalSales);
-        const productSales = new Map<number, { name: string, quantity: number, total: number }>();
-        filteredSales.forEach(sale => { sale.saleItems.forEach(item => { if (!item.isReturn) { const existing = productSales.get(item.productId) || { name: item.name, quantity: 0, total: 0 }; existing.quantity += item.quantity; existing.total += item.quantity * item.price; productSales.set(item.productId, existing); } }); });
-        const topProducts = [...productSales.entries()].map(([productId, data]) => ({ productId, ...data })).sort((a, b) => b.total - a.total).slice(0, 10);
-        return { totalSales, transactionCount: filteredSales.length, salesByShop, topProducts };
-    }, [filteredSales, shops]);
-    return (<div className="page-container admin-dashboard-page"><h2 className="page-title">Admin Dashboard</h2><div className="report-filters"><div className="form-group"><label htmlFor="report-period">Select Period</label><select id="report-period" value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="select-field"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7days">Last 7 Days</option><option value="1month">Last 1 Month</option></select></div></div><div className="summary-cards"><div className="summary-card"><h3 data-label="Metric">Total Sales (All Shops)</h3><p>{formatCurrency(totalSales)}</p></div><div className="summary-card"><h3 data-label="Metric">Total Transactions</h3><p>{transactionCount}</p></div><div className="summary-card"><h3 data-label="Metric">Avg. Sale Value</h3><p>{formatCurrency(transactionCount > 0 ? totalSales / transactionCount : 0)}</p></div></div><div className="admin-dashboard-layout"><div className="dashboard-section management-card"><h3>Sales by Shop</h3><table className="inventory-table"><thead><tr><th>Shop Name</th><th>Transactions</th><th>Total Sales</th></tr></thead><tbody>{salesByShop.map(s => (<tr key={s.shopId}><td data-label="Shop Name">{s.shopName}</td><td data-label="Transactions">{s.transactionCount}</td><td data-label="Total Sales">{formatCurrency(s.totalSales)}</td></tr>))}</tbody></table></div><div className="dashboard-section management-card"><h3>Top Selling Products</h3><table className="inventory-table"><thead><tr><th>Product</th><th>Quantity Sold</th><th>Total Value</th></tr></thead><tbody>{topProducts.map(p => (<tr key={p.productId}><td data-label="Product">{p.name}</td><td data-label="Quantity Sold">{formatQuantity(p.quantity)}</td><td data-label="Total Value">{formatCurrency(p.total)}</td></tr>))}</tbody></table></div></div></div>);
+// --- BAR CHART COMPONENT ---
+interface ChartDataItem { label: string; value: number; }
+type BarChartProps = {
+    data: ChartDataItem[];
+    title: string;
 };
+const BarChart: React.FC<BarChartProps> = ({ data, title }) => {
+    const svgRef = useRef<SVGSVGElement>(null);
+    const [tooltip, setTooltip] = useState<{ content: string; x: number; y: number } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 280 });
+
+    useEffect(() => {
+        if (containerRef.current) {
+            const resizeObserver = new ResizeObserver(entries => {
+                if (entries[0]) {
+                    setDimensions({ width: entries[0].contentRect.width, height: 280 });
+                }
+            });
+            resizeObserver.observe(containerRef.current);
+            return () => resizeObserver.disconnect();
+        }
+    }, []);
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="chart-container" ref={containerRef}>
+                <h3 className="chart-title">{title}</h3>
+                <div className="chart-placeholder">No data available for this period.</div>
+            </div>
+        );
+    }
+    
+    const { width, height } = dimensions;
+    const padding = { top: 20, right: 20, bottom: 60, left: 60 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    const maxValue = Math.max(...data.map(d => d.value), 0);
+    const yScale = chartHeight / (maxValue === 0 ? 1 : maxValue);
+    const barWidth = chartWidth / data.length * 0.8;
+    const barGap = chartWidth / data.length * 0.2;
+
+    const handleMouseOver = (e: React.MouseEvent, item: ChartDataItem) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const svgRect = svgRef.current?.getBoundingClientRect();
+        if(!svgRect) return;
+        setTooltip({
+            content: `${item.label}: ${formatCurrency(item.value)}`,
+            x: rect.left - svgRect.left + rect.width / 2,
+            y: rect.top - svgRect.top - 10,
+        });
+    };
+
+    const handleMouseOut = () => setTooltip(null);
+    
+    const yAxisTicks = useMemo(() => {
+        if (maxValue === 0) return [0];
+        const tickCount = 5;
+        const ticks = [];
+        for (let i = 0; i <= tickCount; i++) {
+            ticks.push((maxValue / tickCount) * i);
+        }
+        return ticks;
+    }, [maxValue]);
+
+
+    return (
+        <div className="chart-container" ref={containerRef}>
+            <h3 className="chart-title">{title}</h3>
+            <div className="chart-wrapper">
+                <svg ref={svgRef} width={width} height={height}>
+                    {/* Y-Axis */}
+                    <g className="y-axis">
+                        {yAxisTicks.map((tick, i) => (
+                            <g key={i} transform={`translate(0, ${padding.top + chartHeight - tick * yScale})`}>
+                                <line x1={padding.left - 5} y1="0" x2={padding.left} y2="0" stroke="currentColor" />
+                                <text x={padding.left - 10} y="0" dy="0.32em" textAnchor="end">{tick > 1000 ? `${(tick/1000).toFixed(1)}k` : tick.toFixed(0)}</text>
+                                <line x1={padding.left} y1="0" x2={width - padding.right} y2="0" stroke="currentColor" strokeDasharray="2,2" opacity="0.2" />
+                            </g>
+                        ))}
+                    </g>
+
+                    {/* Bars and X-Axis Labels */}
+                    {data.map((item, index) => {
+                        const barHeight = item.value * yScale;
+                        const x = padding.left + index * (barWidth + barGap);
+                        const y = padding.top + chartHeight - barHeight;
+                        return (
+                            <g key={index}>
+                                <rect
+                                    x={x}
+                                    y={y}
+                                    width={barWidth}
+                                    height={barHeight}
+                                    className="chart-bar"
+                                    onMouseOver={(e) => handleMouseOver(e, item)}
+                                    onMouseOut={handleMouseOut}
+                                />
+                                <text
+                                    x={x + barWidth / 2}
+                                    y={padding.top + chartHeight + 15}
+                                    className="x-axis-label"
+                                    textAnchor="middle"
+                                >
+                                    {item.label}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+                {tooltip && (
+                    <div className="chart-tooltip" style={{ transform: `translate(${tooltip.x}px, ${tooltip.y}px)` }}>
+                        {tooltip.content}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- DASHBOARD & REPORTS PAGE ---
+type DashboardAndReportsPageProps = {
+    salesHistory: SaleData[];
+    products: Product[];
+    shops: Shop[];
+    onViewInvoice: (sale: SaleData) => void;
+};
+
+const DashboardAndReportsPage: React.FC<DashboardAndReportsPageProps> = ({ salesHistory, products, onViewInvoice }) => {
+    const [filterPeriod, setFilterPeriod] = useState<'7days' | '30days' | 'all'>('7days');
+
+    const filteredSales = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        if (filterPeriod === 'all') return salesHistory;
+
+        const days = filterPeriod === '7days' ? 7 : 30;
+        const startDate = new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+
+        return salesHistory.filter(sale => {
+            const saleDate = new Date(sale.date);
+            return saleDate >= startDate;
+        });
+    }, [salesHistory, filterPeriod]);
+
+    const { stats, salesOverTime, topProducts, salesByCategory } = useMemo(() => {
+        const totalSales = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
+        const transactionCount = filteredSales.length;
+        const avgSaleValue = transactionCount > 0 ? totalSales / transactionCount : 0;
+        
+        // Sales over time
+        const salesByDate: { [key: string]: number } = {};
+        filteredSales.forEach(sale => {
+            const dateStr = new Date(sale.date).toLocaleDateString('en-CA'); // YYYY-MM-DD
+            salesByDate[dateStr] = (salesByDate[dateStr] || 0) + sale.grandTotal;
+        });
+        const salesOverTimeData = Object.entries(salesByDate)
+          .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
+          .map(([date, total]) => ({ label: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: total }));
+
+        // Top selling products
+        const productSales = new Map<string, { value: number }>();
+        filteredSales.forEach(sale => {
+            sale.saleItems.forEach(item => {
+                if (!item.isReturn) {
+                    const existing = productSales.get(item.name) || { value: 0 };
+                    existing.value += item.quantity * item.price;
+                    productSales.set(item.name, existing);
+                }
+            });
+        });
+        const topProductsData = [...productSales.entries()]
+            .map(([label, { value }]) => ({ label, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5);
+
+        // Sales by category
+        const categorySales = new Map<string, { value: number }>();
+        filteredSales.forEach(sale => {
+            sale.saleItems.forEach(item => {
+                if (!item.isReturn) {
+                    const product = products.find(p => p.id === item.productId);
+                    const category = product?.category || 'Uncategorized';
+                    const existing = categorySales.get(category) || { value: 0 };
+                    existing.value += item.quantity * item.price;
+                    categorySales.set(category, existing);
+                }
+            });
+        });
+        const salesByCategoryData = [...categorySales.entries()]
+            .map(([label, { value }]) => ({ label, value }))
+            .sort((a, b) => b.value - a.value);
+
+        return {
+            stats: { totalSales, transactionCount, avgSaleValue },
+            salesOverTime: salesOverTimeData,
+            topProducts: topProductsData,
+            salesByCategory: salesByCategoryData,
+        };
+    }, [filteredSales, products]);
+    
+    return (
+        <div className="page-container dashboard-page">
+            <div className="page-header">
+                <h2 className="page-title">Dashboard & Reports</h2>
+                <div className="report-filters">
+                    <div className="toggle-switch">
+                        <button className={`toggle-button ${filterPeriod === '7days' ? 'active' : ''}`} onClick={() => setFilterPeriod('7days')}>Last 7 Days</button>
+                        <button className={`toggle-button ${filterPeriod === '30days' ? 'active' : ''}`} onClick={() => setFilterPeriod('30days')}>Last 30 Days</button>
+                        <button className={`toggle-button ${filterPeriod === 'all' ? 'active' : ''}`} onClick={() => setFilterPeriod('all')}>All Time</button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="summary-cards">
+                <div className="summary-card"><h3>Total Revenue</h3><p>{formatCurrency(stats.totalSales)}</p></div>
+                <div className="summary-card"><h3>Transactions</h3><p>{stats.transactionCount}</p></div>
+                <div className="summary-card"><h3>Avg. Sale Value</h3><p>{formatCurrency(stats.avgSaleValue)}</p></div>
+            </div>
+
+            <div className="dashboard-grid">
+                <BarChart title="Sales Over Time" data={salesOverTime} />
+                <BarChart title="Top 5 Selling Products" data={topProducts} />
+                <BarChart title="Sales by Category" data={salesByCategory} />
+            </div>
+            
+            <div className="recent-activity">
+                <h3 className="section-title">Recent Transactions</h3>
+                <div className="inventory-list-container">
+                    <table className="inventory-table sales-history-table">
+                        <thead>
+                            <tr><th>Date</th><th>Customer</th><th>Items</th><th>Total Amount</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody>
+                            {filteredSales.slice(0, 20).map(sale => (
+                                <tr key={sale.id}>
+                                    <td data-label="Date">{new Date(sale.date).toLocaleString()}</td>
+                                    <td data-label="Customer">{sale.customerName || 'N/A'}</td>
+                                    <td data-label="Items">{sale.saleItems.length}</td>
+                                    <td data-label="Total Amount">{formatCurrency(sale.grandTotal)}</td>
+                                    <td data-label="Actions"><button className="action-button-secondary" onClick={() => onViewInvoice(sale)}>View</button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- CREATE ORDER MODAL ---
 type CreateOrderModalProps = {
@@ -2761,39 +2969,54 @@ const App = () => {
 
     const handleLogin = async (user: User) => {
         sessionStorage.setItem('currentUser', JSON.stringify(user));
-        setIsLoading(true); setAppError(null);
+        setIsLoading(true);
+        setAppError(null);
         try {
-            // Check if data already exists to prevent overwriting on every login
-            const existingProducts = await dbManager.getAll<Product>('products');
-
-            // Only perform the initial data sync if the database appears to be empty.
-            // This preserves user-added data (like imported products) across sessions.
-            if (existingProducts.length === 0) {
+            // Use a persistent flag in localStorage to check if the initial data sync has been performed.
+            // This is more robust than checking if a specific table is empty.
+            const isInitialized = localStorage.getItem('db_initialized');
+    
+            if (!isInitialized) {
                 const [shopsData, customersData, usersData, productsData, salesData] = await Promise.all([
-                    api.getShops(), api.getCustomers(), user.role === 'super_admin' ? api.getUsers() : Promise.resolve([]),
-                    api.getProducts(), api.getSales(),
+                    api.getShops(),
+                    api.getCustomers(),
+                    user.role === 'super_admin' ? api.getUsers() : Promise.resolve([]),
+                    api.getProducts(),
+                    api.getSales(),
                 ]);
+    
+                // Clear all data stores to ensure a fresh start
                 await Promise.all([
                     dbManager.clear('shops'), dbManager.clear('customers'), dbManager.clear('users'),
                     dbManager.clear('products'), dbManager.clear('sales'), dbManager.clear('expenses'),
                     dbManager.clear('purchaseOrders'), dbManager.clear('salesOrders')
                 ]);
+    
+                // Bulk insert the mock/initial data
                 await Promise.all([
-                    dbManager.bulkPut('shops', shopsData || []), dbManager.bulkPut('customers', customersData || []),
-                    dbManager.bulkPut('users', usersData || []), dbManager.bulkPut('products', productsData || []),
+                    dbManager.bulkPut('shops', shopsData || []),
+                    dbManager.bulkPut('customers', customersData || []),
+                    dbManager.bulkPut('users', usersData || []),
+                    dbManager.bulkPut('products', productsData || []),
                     dbManager.bulkPut('sales', (salesData || []).map(s => ({ ...s, date: new Date(s.date) }))),
                 ]);
+    
+                // Set the flag after the first successful sync to prevent this block from running again.
+                localStorage.setItem('db_initialized', 'true');
             }
-
+    
             setCurrentUser(user);
-            if (user.role === 'super_admin') setCurrentPage('Admin Dashboard');
-            else if (user.role === 'admin') setCurrentPage('Reports');
-            else setCurrentPage('New Sale');
+            if (user.role === 'super_admin' || user.role === 'admin') {
+                setCurrentPage('Dashboard');
+            } else {
+                setCurrentPage('New Sale');
+            }
         } catch (err) {
             setAppError(err instanceof Error ? err.message : "Failed to sync initial data.");
             setIsLoading(false);
         }
     };
+    
     const handleLogout = () => { sessionStorage.removeItem('authToken'); sessionStorage.removeItem('currentUser'); setCurrentUser(null); setAllProducts([]); setCustomers([]); setAllSalesHistory([]); setUsers([]); setShops([]); setSelectedShopId(null); setAuthView('login'); };
     const handleAddProduct = async (newProductData: Omit<Product, 'id' | 'shopId'>): Promise<Product> => {
         if (!currentShopContextId) {
@@ -3048,7 +3271,7 @@ const App = () => {
     const handleViewInvoiceFromReport = (sale: SaleData) => { setPendingSaleData(sale); setIsSaleFinalized(true); setCurrentPage('Invoice'); };
     const handleShopChange = (shopId: number) => {
         setSelectedShopId(shopId === 0 ? null : shopId);
-        setCurrentPage(shopId !== 0 ? 'Reports' : 'Admin Dashboard');
+        setCurrentPage('Dashboard');
     };
 
     const handleForgotPasswordRequest = async (usernameOrEmail: string) => {
@@ -3108,19 +3331,18 @@ const App = () => {
 
     const renderPage = () => {
         switch (currentPage) {
-            case 'Admin Dashboard': return <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} />;
+            case 'Dashboard': return <DashboardAndReportsPage salesHistory={visibleSalesHistory} products={allProducts} shops={shops} onViewInvoice={handleViewInvoiceFromReport} />;
             case 'New Sale': return <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
             case 'Product Inventory': return <ProductInventoryPage products={visibleProducts} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
             case 'Order Management': return <OrderManagementPage purchaseOrders={visiblePurchaseOrders} salesOrders={visibleSalesOrders} products={allProducts} currentShopId={currentShopContextId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
             case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} theme={invoiceTheme} onThemeChange={setInvoiceTheme} />;
             case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} />;
             case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
-            case 'Reports': return <ReportsPage salesHistory={visibleSalesHistory} onViewInvoice={handleViewInvoiceFromReport} />;
             case 'Expenses': return <ExpensesPage expenses={visibleExpenses} onAddExpense={handleAddExpense} shops={shops} />;
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} />;
             case 'Manage Users': return currentUser.role === 'super_admin' ? <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} onAdminPasswordReset={handleAdminPasswordReset} /> : <p>Access Denied</p>;
-            default: return currentUser.role === 'super_admin' ? <AdminDashboardPage allSalesHistory={allSalesHistory} allProducts={allProducts} shops={shops} /> : <NewSalePage products={visibleProducts} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoiceFromReport} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={updateCurrentSaleSession} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={currentShopContextId} />;
+            default: return <DashboardAndReportsPage salesHistory={visibleSalesHistory} products={allProducts} shops={shops} onViewInvoice={handleViewInvoiceFromReport} />;
         }
     };
     return (<div className={viewMode === 'mobile' ? 'view-mode-mobile' : ''}><AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={handleShopChange} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} /><main className="app-main">{renderPage()}</main></div>);

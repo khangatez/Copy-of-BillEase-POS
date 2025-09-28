@@ -948,6 +948,115 @@ body {
     gap: var(--padding-md);
 }
 
+/* --- Dashboard & Reports Page --- */
+.dashboard-page .report-filters {
+    margin-left: auto;
+}
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--padding-md);
+    margin-bottom: var(--padding-md);
+}
+.summary-card {
+    background-color: var(--background-secondary);
+    padding: var(--padding-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+.summary-card h3 {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--padding-sm);
+    font-weight: 500;
+}
+.summary-card p {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--padding-md);
+    margin-bottom: var(--padding-lg);
+}
+.recent-activity {
+    margin-top: var(--padding-lg);
+}
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: var(--padding-md);
+}
+
+/* --- Bar Chart Component --- */
+.chart-container {
+    background-color: var(--background-secondary);
+    padding: var(--padding-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+.chart-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: var(--padding-md);
+}
+.chart-wrapper {
+    position: relative;
+}
+.chart-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 280px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.chart-bar {
+    fill: var(--accent-primary);
+    transition: fill 0.2s;
+}
+.chart-bar:hover {
+    fill: var(--accent-primary-hover);
+}
+@keyframes bar-enter {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+}
+.chart-bar {
+    animation: bar-enter 0.5s ease-out;
+    transform-origin: bottom;
+}
+.y-axis text, .x-axis-label {
+    fill: var(--text-secondary);
+    font-size: 12px;
+}
+.y-axis line {
+    stroke: var(--text-secondary);
+}
+.x-axis-label {
+    white-space: pre-wrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+.chart-tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: var(--padding-sm);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+    pointer-events: none;
+    transform-origin: bottom center;
+    white-space: nowrap;
+    z-index: 10;
+    transition: transform 0.1s;
+    left: 0;
+    top: 0;
+}
+
+
 /* --- Expenses Page --- */
 .expenses-page {
     display: grid;
@@ -1575,76 +1684,4 @@ body {
 .confirmation-modal .modal-body {
     display: flex;
     align-items: flex-start;
-    gap: var(--padding-md);
-    text-align: left;
-}
-
-.confirmation-icon {
-    flex-shrink: 0;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background-color: rgba(220, 53, 69, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.confirmation-icon svg {
-    width: 28px;
-    height: 28px;
-    color: var(--danger-color);
-}
-
-.confirmation-content h3 {
-    margin-bottom: var(--padding-sm);
-    font-size: 1.2rem;
-}
-.confirmation-content p {
-    color: var(--text-secondary);
-}
-
-/* Import Modal Enhancements */
-.import-instructions {
-    background-color: var(--background-tertiary);
-    padding: var(--padding-md);
-    border-radius: var(--border-radius);
-    margin-bottom: var(--padding-md);
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-.import-instructions code {
-    background-color: var(--background-primary);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'Source Code Pro', monospace;
-}
-.file-upload-container {
-    margin-top: var(--padding-md);
-}
-.file-drop-zone {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--padding-lg);
-    border: 2px dashed var(--border-color);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s;
-    text-align: center;
-    color: var(--text-secondary);
-}
-.file-drop-zone:hover {
-    border-color: var(--accent-primary);
-    background-color: var(--background-tertiary);
-}
-.upload-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--padding-sm);
-    color: var(--accent-primary);
-}
-.upload-text {
-    font-weight: 500;
-}
+    gap: var(--padding
