@@ -96,6 +96,7 @@ interface Customer {
 interface SaleItem {
   productId: number;
   name: string;
+  nameTamil: string;
   quantity: number;
   price: number;
   isReturn: boolean;
@@ -223,8 +224,8 @@ const MOCK_PRODUCTS: Product[] = [
 ];
 
 const MOCK_SALES: SaleData[] = [
-    { id: 'sale-1', shopId: 1, date: new Date(new Date().setDate(new Date().getDate() - 1)), customerName: 'Alice', customerMobile: '111', saleItems: [{ productId: 1, name: 'Apple', quantity: 5, price: 0.5, isReturn: false }], grossTotal: 2.5, returnTotal: 0, subtotal: 2.5, discount: 0, taxAmount: 0, taxPercent: 0, grandTotal: 2.5, languageMode: 'English', previousBalance: 0, amountPaid: 2.5, totalBalanceDue: 0 },
-    { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, discount: 0, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, totalBalanceDue: 0 },
+    { id: 'sale-1', shopId: 1, date: new Date(new Date().setDate(new Date().getDate() - 1)), customerName: 'Alice', customerMobile: '111', saleItems: [{ productId: 1, name: 'Apple', nameTamil: 'ஆப்பிள்', quantity: 5, price: 0.5, isReturn: false }], grossTotal: 2.5, returnTotal: 0, subtotal: 2.5, discount: 0, taxAmount: 0, taxPercent: 0, grandTotal: 2.5, languageMode: 'English', previousBalance: 0, amountPaid: 2.5, totalBalanceDue: 0 },
+    { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', nameTamil: 'பிரெட்', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, discount: 0, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, totalBalanceDue: 0 },
 ];
 
 // --- IndexedDB Manager ---
@@ -1106,6 +1107,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             newItems.push({
                 productId: product.id,
                 name: product.name,
+                nameTamil: product.nameTamil,
                 quantity: 1,
                 price: priceMode === 'B2B' ? product.b2bPrice : product.b2cPrice,
                 isReturn: false,
@@ -1182,8 +1184,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         (updatedItems[index] as any)[field] = value;
         onSessionUpdate({ saleItems: updatedItems });
     
-        // Only super_admin can persist changes to product master data from the sales grid
-        if ((field === 'price' || field === 'name') && userRole === 'super_admin') {
+        if ((field === 'price' || field === 'name' || field === 'nameTamil') && userRole === 'super_admin') {
             const item = updatedItems[index];
             const productToUpdate = products.find(p => p.id === item.productId);
             if (!productToUpdate) return;
@@ -1192,7 +1193,6 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                 const priceValue = typeof value === 'number' ? value : parseFloat(value);
                 if (isNaN(priceValue)) return;
                 
-                // Respect the current price mode when updating the product's price
                 if (priceMode === 'B2C' && productToUpdate.b2cPrice !== priceValue) {
                     onUpdateProduct({ ...productToUpdate, b2cPrice: priceValue });
                 } else if (priceMode === 'B2B' && productToUpdate.b2bPrice !== priceValue) {
@@ -1200,6 +1200,8 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                 }
             } else if (field === 'name' && productToUpdate.name !== value) {
                 onUpdateProduct({ ...productToUpdate, name: value });
+            } else if (field === 'nameTamil' && productToUpdate.nameTamil !== value) {
+                onUpdateProduct({ ...productToUpdate, nameTamil: value });
             }
         }
     };
@@ -1419,10 +1421,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                                         <input
                                             type="text"
                                             className="input-field"
-                                            data-field="name"
-                                            value={item.name}
-                                            onChange={e => handleItemUpdate(index, 'name', e.target.value)}
-                                            disabled={userRole !== 'super_admin'}
+                                            data-field={languageMode === 'Tamil' ? 'nameTamil' : 'name'}
+                                            value={languageMode === 'Tamil' ? item.nameTamil : item.name}
+                                            onChange={e => handleItemUpdate(index, languageMode === 'Tamil' ? 'nameTamil' : 'name', e.target.value)}
                                             aria-label={`Description for item ${index + 1}`}
                                         />
                                     </td>
@@ -1764,9 +1765,9 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                 <div className="printable-area">
                     <header className="invoice-header" style={{ transform: `translateY(${offsets.header}px)` }}>{isTitleEditing ? <input ref={titleInputRef} type="text" value={invoiceTitle} onChange={e => setInvoiceTitle(e.target.value)} onBlur={() => setIsTitleEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }} className="invoice-title-input" /> : <h2 onDoubleClick={() => setIsTitleEditing(true)} title="Double-click to edit">{invoiceTitle}</h2>}</header>
                     <section className="invoice-customer">{(customerName || customerMobile) && (<><p><strong>Customer:</strong> {customerName || 'N/A'}</p><p><strong>Mobile:</strong> {customerMobile || 'N/A'}</p></>)}<p><strong>Date:</strong> {saleData.date.toLocaleString()}</p></section>
-                    <table className="invoice-table"><thead><tr><th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th><th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th><th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th><th>{languageMode === 'English' ? 'Price' : 'விலை'}</th><th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th></tr></thead><tbody>{regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table>
+                    <table className="invoice-table"><thead><tr><th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th><th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th><th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th><th>{languageMode === 'English' ? 'Price' : 'விலை'}</th><th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th></tr></thead><tbody>{regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table>
                     {regularItems.length > 0 && (<div className="total-row invoice-section-total"><span>{languageMode === 'English' ? 'Gross Total' : 'மொத்த விற்பனை'}</span><span>{formatNumberForInvoice(finalGrossTotal)}</span></div>)}
-                    {returnedItems.length > 0 && (<><h3 className="invoice-section-header">{languageMode === 'English' ? 'Return Items' : 'திரும்பிய பொருட்கள்'}</h3><table className="invoice-table"><tbody>{returnedItems.map((item, index) => (<tr key={index} className="is-return"><td>{index + 1}</td><td>{item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td className="return-amount">-{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table><div className="total-row return-total-row invoice-section-total"><span>{languageMode === 'English' ? 'Return Total' : 'திரும்பிய மொத்தம்'}</span><span className="return-amount">-{formatNumberForInvoice(finalReturnTotal)}</span></div>{returnReason && <p className="invoice-return-reason"><strong>Reason:</strong> {returnReason}</p>}</>)}
+                    {returnedItems.length > 0 && (<><h3 className="invoice-section-header">{languageMode === 'English' ? 'Return Items' : 'திரும்பிய பொருட்கள்'}</h3><table className="invoice-table"><tbody>{returnedItems.map((item, index) => (<tr key={index} className="is-return"><td>{index + 1}</td><td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td className="return-amount">-{formatPriceForInvoice(item.quantity * item.price)}</td></tr>))}</tbody></table><div className="total-row return-total-row invoice-section-total"><span>{languageMode === 'English' ? 'Return Total' : 'திரும்பிய மொத்தம்'}</span><span className="return-amount">-{formatNumberForInvoice(finalReturnTotal)}</span></div>{returnReason && <p className="invoice-return-reason"><strong>Reason:</strong> {returnReason}</p>}</>)}
                     <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}><div className="invoice-totals">{taxPercent > 0 && (<div className="total-row"><span>{languageMode === 'English' ? `Tax (${taxPercent}%)` : `வரி (${taxPercent}%)`}</span><span>{formatNumberForInvoice(taxAmount)}</span></div>)}<div className="total-row grand-total"><span>{languageMode === 'English' ? 'Grand Total' : 'மொத்தத் தொகை'}</span><span>{formatCurrency(grandTotal)}</span></div>
                     <div className="balance-summary">
                         {previousBalance !== 0 && (
