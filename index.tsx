@@ -1410,10 +1410,15 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef}>
-                                {suggestions.map((p, i) => (<div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
-                                    <span>{p.name}</span>
-                                    <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
-                                </div>))}
+                                {suggestions.map((p, i) => (
+                                <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
+                                    <div className="suggestion-details">
+                                        <span>{p.name}</span>
+                                        <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
+                                    </div>
+                                    <span className="suggestion-stock">Stock: {p.stock}</span>
+                                </div>
+                                ))}
                                 {showAddNewSuggestion && (
                                     <div
                                         className={`suggestion-item add-new-product-suggestion ${suggestions.length === activeSuggestion ? 'active' : ''}`}
