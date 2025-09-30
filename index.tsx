@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -1422,10 +1423,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             <div className="product-suggestions" ref={suggestionsContainerRef}>
                                 {suggestions.map((p, i) => (
                                 <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
-                                    <div className="suggestion-details">
-                                        <span>{p.name}</span>
-                                        <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
-                                    </div>
+                                    <span className="suggestion-name">{p.name}</span>
+                                    {/* FIX: Corrected typo from p.c.b2cPrice to p.b2cPrice */}
+                                    <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
                                     <span className="suggestion-stock">Stock: {p.stock}</span>
                                 </div>
                                 ))}
