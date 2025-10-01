@@ -1,4 +1,3 @@
-
 :root {
   --font-family: 'Inter', sans-serif;
   --border-radius: 6px;
@@ -19,6 +18,7 @@
   --text-secondary: #a0a0a0;
   --accent-primary: #007bff;
   --accent-primary-hover: #0056b3;
+  --accent-primary-text: #ffffff;
   --border-color: #444444;
   --danger-color: #dc3545;
   --danger-color-hover: #c82333;
@@ -35,6 +35,7 @@
   --text-secondary: #6c757d;
   --accent-primary: #007bff;
   --accent-primary-hover: #0069d9;
+  --accent-primary-text: #ffffff;
   --border-color: #dee2e6;
   --danger-color: #dc3545;
   --danger-color-hover: #c82333;
@@ -51,6 +52,7 @@
   --text-secondary: #8892b0;
   --accent-primary: #64ffda;
   --accent-primary-hover: #52d6bc;
+  --accent-primary-text: #0a192f;
   --border-color: #303C55;
   --danger-color: #ff8a8a;
   --danger-color-hover: #ff6868;
@@ -67,6 +69,7 @@
   --text-secondary: #a0a0a0;
   --accent-primary: #a5d6a7;
   --accent-primary-hover: #81c784;
+  --accent-primary-text: #1e2a21;
   --border-color: #4b5f4f;
   --danger-color: #ef9a9a;
   --danger-color-hover: #e57373;
@@ -83,6 +86,7 @@
   --text-secondary: #d1b3b3;
   --accent-primary: #ffab70;
   --accent-primary-hover: #ff8a48;
+  --accent-primary-text: #2c1e2e;
   --border-color: #6c4e6e;
   --danger-color: #ff8787;
   --danger-color-hover: #ff6666;
@@ -99,6 +103,7 @@
   --text-secondary: #9e9e9e;
   --accent-primary: #f92672;
   --accent-primary-hover: #d32060;
+  --accent-primary-text: #ffffff;
   --border-color: #49483e;
   --danger-color: #f92672;
   --danger-color-hover: #d32060;
@@ -115,6 +120,7 @@
   --text-secondary: #a3b2cc;
   --accent-primary: #88c0d0;
   --accent-primary-hover: #6ea9bc;
+  --accent-primary-text: #2e3440;
   --border-color: #4c566a;
   --danger-color: #bf616a;
   --danger-color-hover: #b45662;
@@ -131,6 +137,7 @@
   --text-secondary: #6c757d;
   --accent-primary: #0d9488;
   --accent-primary-hover: #0f766e;
+  --accent-primary-text: #ffffff;
   --border-color: #dee2e6;
   --danger-color: #dc3545;
   --danger-color-hover: #c82333;
@@ -147,6 +154,7 @@
   --text-secondary: #adb5bd;
   --accent-primary: #00adb5;
   --accent-primary-hover: #00939a;
+  --accent-primary-text: #ffffff;
   --border-color: #5f6770;
   --danger-color: #e57373;
   --danger-color-hover: #d32f2f;
@@ -163,6 +171,7 @@
   --text-secondary: #c9ada7;
   --accent-primary: #9a8c98;
   --accent-primary-hover: #817382;
+  --accent-primary-text: #ffffff;
   --border-color: #8c90ad;
   --danger-color: #ef9a9a;
   --danger-color-hover: #e57373;
@@ -351,7 +360,7 @@ body {
 
 .dropdown-button {
   background-color: var(--accent-primary);
-  color: var(--background-secondary);
+  color: var(--accent-primary-text);
   padding: var(--padding-sm) var(--padding-md);
   border: none;
   border-radius: var(--border-radius);
@@ -505,7 +514,7 @@ body {
 
 .action-button-primary {
     background-color: var(--accent-primary);
-    color: var(--background-secondary);
+    color: var(--accent-primary-text);
 }
 .action-button-primary:hover {
     background-color: var(--accent-primary-hover);
@@ -815,7 +824,7 @@ body {
 }
 .suggestion-item:hover, .suggestion-item.active {
   background-color: var(--accent-primary);
-  color: var(--background-secondary);
+  color: var(--accent-primary-text);
 }
 
 .suggestion-name {
@@ -846,7 +855,7 @@ body {
 .suggestion-item.active .suggestion-stock,
 .suggestion-item:hover .suggestion-name,
 .suggestion-item.active .suggestion-name {
-    color: var(--background-secondary);
+    color: inherit;
 }
 
 .suggestion-item.add-new-product-suggestion {
@@ -858,8 +867,7 @@ body {
 
 .suggestion-item.add-new-product-suggestion:hover,
 .suggestion-item.add-new-product-suggestion.active {
-    background-color: var(--accent-primary);
-    color: var(--background-secondary) !important;
+    color: var(--accent-primary-text) !important;
 }
 
 .barcode-scanner-container {
@@ -925,8 +933,8 @@ body {
   transition: all 0.2s;
 }
 .toggle-button.active {
-  background-color: var(--background-secondary);
-  color: var(--text-primary);
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-text);
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
@@ -1266,70 +1274,3 @@ body {
 .invoice-header h2 {
   color: var(--invoice-header-text);
   font-weight: 700;
-  margin: 0;
-}
-.invoice-title-input {
-    font-size: 1em;
-    font-weight: bold;
-    border: 1px solid var(--invoice-table-border);
-    padding: 4px;
-    text-align: center;
-    background-color: var(--invoice-bg);
-    color: var(--invoice-text-primary);
-}
-
-.invoice-customer { padding: var(--padding-md); }
-
-.invoice-table { width: 100%; border-collapse: collapse; }
-.invoice-table th, .invoice-table td { padding: var(--padding-sm); border-bottom: 1px solid var(--invoice-table-border); }
-.invoice-table thead { background-color: var(--invoice-table-header-bg); }
-.invoice-table thead th { color: var(--invoice-table-header-text); font-weight: 600; text-align: left; }
-.invoice-table tbody tr:last-child td { border-bottom: none; }
-.invoice-table .is-return td { color: var(--invoice-text-secondary); text-decoration: line-through; }
-.invoice-table .return-amount { color: var(--danger-color); }
-
-.invoice-section-header {
-    padding: var(--padding-md) var(--padding-md) var(--padding-sm);
-    margin-top: var(--padding-sm);
-    font-size: 1.1em;
-    border-bottom: 1px solid var(--invoice-table-border);
-}
-
-.invoice-footer { padding: var(--padding-md); background-color: var(--invoice-footer-bg); }
-.invoice-totals { margin-bottom: var(--padding-md); }
-.invoice-totals .grand-total {
-    font-size: 1.2em;
-    font-weight: 700;
-    padding: var(--padding-sm);
-    margin-top: var(--padding-sm);
-    background-color: var(--invoice-grand-total-bg);
-    border-top: 2px solid var(--invoice-accent-color);
-}
-.invoice-totals .grand-total span:last-child { color: var(--invoice-grand-total-text); }
-.invoice-custom-footer {
-  text-align: center;
-  margin-top: var(--padding-sm);
-  font-style: italic;
-  color: var(--invoice-text-secondary);
-  font-size: 0.9em;
-  cursor: text;
-  border: 1px dashed transparent;
-  border-radius: var(--border-radius);
-  padding: 4px;
-  transition: border-color 0.2s, background-color 0.2s, transform 0.1s linear;
-}
-.invoice-custom-footer:hover {
-  background-color: color-mix(in srgb, var(--invoice-table-border) 40%, transparent);
-  border-color: var(--invoice-table-border);
-}
-.invoice-footer-input {
-    width: 100%;
-    text-align: center;
-    border: 1px solid var(--invoice-table-border);
-    background: var(--invoice-bg);
-    color: var(--invoice-text-primary);
-    font-style: italic;
-}
-
-/* Theme: Professional (already default) */
-.invoice-paper.theme-professional { /*

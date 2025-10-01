@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -2907,25 +2906,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateToForgotPasswo
     };
     return (
         <div className="login-container">
-            <div className="login-card">
-                <form onSubmit={handleSubmit} className="login-form">
-                    <h2>BillEase POS Login</h2>
-                    {error && <p className="login-error">{error}</p>}
-                    <div className="form-group">
-                        <label htmlFor="username">Username</label>
-                        <input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} autoFocus />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} />
-                    </div>
-                    <button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>
-                        {isLoggingIn ? 'Logging in...' : 'Login'}
-                    </button>
-                    <div className="login-footer">
-                        <a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a>
-                    </div>
-                </form>
+            <div className="login-layout">
+                <div className="login-branding">
+                    <h1 className="login-branding-title">BillEase POS</h1>
+                    <p className="login-branding-tagline">Streamlining Your Business, One Sale at a Time.</p>
+                </div>
+                <div className="login-form-container">
+                    <form onSubmit={handleSubmit} className="login-form">
+                        <h2>Welcome Back!</h2>
+                        {error && <p className="login-error">{error}</p>}
+                        <div className="form-group">
+                            <label htmlFor="username">Username</label>
+                            <div className="input-with-icon-login">
+                                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                <input id="username" type="text" className="input-field" value={username} onChange={e => setUsername(e.target.value)} required disabled={isLoggingIn} autoFocus />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="password">Password</label>
+                            <div className="input-with-icon-login">
+                                <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                                <input id="password" type="password" className="input-field" value={password} onChange={e => setPassword(e.target.value)} required disabled={isLoggingIn} />
+                            </div>
+                        </div>
+                        <button type="submit" className="action-button-primary login-button" disabled={isLoggingIn}>
+                            {isLoggingIn ? 'Logging in...' : 'Login'}
+                        </button>
+                        <div className="login-footer">
+                            <a href="#" onClick={onNavigateToForgotPassword} className="forgot-password-link">Forgot Password?</a>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );
