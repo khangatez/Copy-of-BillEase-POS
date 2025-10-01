@@ -415,12 +415,148 @@ body {
     margin: var(--padding-sm) 0;
 }
 
+/* --- AUTHENTICATION / LOGIN PAGE --- */
+.login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: var(--padding-lg);
+    background: linear-gradient(135deg, var(--background-primary) 0%, color-mix(in srgb, var(--background-primary) 80%, var(--background-tertiary)) 100%);
+}
+
+.login-layout {
+    width: 100%;
+    max-width: 850px;
+    background: var(--background-secondary);
+    border-radius: calc(var(--border-radius) * 2);
+    box-shadow: var(--shadow-md);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    overflow: hidden;
+    animation: slideInUp 0.5s ease-out;
+}
+
+.login-branding {
+    padding: calc(var(--padding-lg) * 2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background-color: var(--background-tertiary);
+    color: var(--text-primary);
+    text-align: center;
+}
+
+/* Specific styling for some themes to make branding pop */
+.theme-professional-light .login-branding {
+    background-color: var(--accent-primary);
+    color: var(--accent-primary-text);
+}
+.theme-ocean-blue .login-branding { background-color: #112240; }
+.theme-charcoal .login-branding { background-color: #222831; }
+
+.login-branding-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.login-branding-tagline {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-top: var(--padding-sm);
+}
+.theme-professional-light .login-branding-tagline {
+    color: color-mix(in srgb, var(--accent-primary-text) 80%, transparent);
+}
+
+.login-form-container {
+    padding: calc(var(--padding-lg) * 2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.login-form h2 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: var(--padding-lg);
+    text-align: center;
+}
+
+.login-error {
+    background-color: color-mix(in srgb, var(--danger-color) 15%, transparent);
+    color: var(--danger-color);
+    padding: var(--padding-sm) var(--padding-md);
+    border-radius: var(--border-radius);
+    text-align: center;
+    margin-bottom: var(--padding-md);
+    border: 1px solid color-mix(in srgb, var(--danger-color) 30%, transparent);
+}
+
+.login-form .form-group {
+    margin-bottom: var(--padding-md);
+}
+
+.input-with-icon-login {
+    position: relative;
+}
+
+.input-with-icon-login .input-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    fill: var(--text-secondary);
+    pointer-events: none;
+}
+.input-with-icon-login .input-field {
+    padding-left: 40px;
+    height: 48px;
+}
+
+.login-button {
+    width: 100%;
+    padding: 14px;
+    font-size: 1.1rem;
+    margin-top: var(--padding-md);
+    line-height: 1;
+}
+
+.login-footer {
+    text-align: center;
+    margin-top: var(--padding-lg);
+}
+
+.forgot-password-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.forgot-password-link:hover {
+    text-decoration: underline;
+}
+
+.success-message {
+    background-color: color-mix(in srgb, var(--success-color) 15%, transparent);
+    color: var(--success-color);
+    padding: var(--padding-sm) var(--padding-md);
+    border-radius: var(--border-radius);
+    text-align: center;
+    margin-bottom: var(--padding-md);
+    border: 1px solid color-mix(in srgb, var(--success-color) 30%, transparent);
+}
+
 
 /* --- LAYOUT & PAGES --- */
 .app-main {
   flex-grow: 1;
   padding: var(--padding-md);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-container {
@@ -428,6 +564,9 @@ body {
   margin: 0 auto;
   width: 100%;
   animation: fadeIn 0.5s ease-out;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-container-full-width {
@@ -594,7 +733,6 @@ body {
 .new-sale-page {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 100px); /* Adjust based on header/padding */
 }
 .new-sale-main-content {
     flex-grow: 1;
