@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -1053,9 +1051,11 @@ type NewSalePageProps = {
     activeBillIndex: number;
     onBillChange: (index: number) => void;
     currentShopId: number | null;
+    isFitToScreen: boolean;
+    setIsFitToScreen: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId }) => {
+const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, isFitToScreen, setIsFitToScreen }) => {
     const { customerName, customerMobile, priceMode, languageMode, taxPercent, discount, saleItems, amountPaid } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
@@ -1343,7 +1343,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     };
 
     return (
-        <div className="page-container new-sale-page">
+        <div className={`page-container new-sale-page ${isFitToScreen ? 'fit-to-screen' : ''}`}>
             <CustomerHistoryModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} customer={activeCustomer} salesHistory={salesHistory} onViewInvoice={onViewInvoice} />
             <ConfirmTransactionModal
                 isOpen={isConfirmModalOpen}
@@ -1361,31 +1361,43 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
             <main className="new-sale-main-content">
                 <section className="customer-and-search-section">
                     <div className="sale-options-bar">
-                        <div className="toggle-group">
-                            <div className="toggle-switch">
-                                <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
-                                <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
+                        <div className="sale-options-left">
+                            <div className="toggle-group">
+                                <div className="toggle-switch">
+                                    <button className={`toggle-button ${priceMode === 'B2C' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2C' })}>B2C</button>
+                                    <button className={`toggle-button ${priceMode === 'B2B' ? 'active' : ''}`} onClick={() => onSessionUpdate({ priceMode: 'B2B' })}>B2B</button>
+                                </div>
+                            </div>
+                            <div className="toggle-group">
+                                <div className="toggle-switch">
+                                    <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English' })}>English</button>
+                                    <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
+                                </div>
+                            </div>
+                            <div className="toggle-group">
+                                <div className="toggle-switch">
+                                    {[0, 1, 2].map(index => (
+                                        <button
+                                            key={index}
+                                            className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`}
+                                            onClick={() => onBillChange(index)}
+                                            aria-label={`Switch to bill ${index + 1}`}
+                                        >
+                                            {index + 1}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                        <div className="toggle-group">
-                            <div className="toggle-switch">
-                                <button className={`toggle-button ${languageMode === 'English' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'English' })}>English</button>
-                                <button className={`toggle-button ${languageMode === 'Tamil' ? 'active' : ''}`} onClick={() => onSessionUpdate({ languageMode: 'Tamil' })}>Tamil</button>
-                            </div>
-                        </div>
-                        <div className="toggle-group">
-                            <div className="toggle-switch">
-                                {[0, 1, 2].map(index => (
-                                    <button
-                                        key={index}
-                                        className={`toggle-button ${activeBillIndex === index ? 'active' : ''}`}
-                                        onClick={() => onBillChange(index)}
-                                        aria-label={`Switch to bill ${index + 1}`}
-                                    >
-                                        {index + 1}
-                                    </button>
-                                ))}
-                            </div>
+                         <div className="sale-options-right">
+                            <button className={`fit-to-screen-button toggle-button ${isFitToScreen ? 'active' : ''}`} onClick={() => setIsFitToScreen(prev => !prev)} title={isFitToScreen ? "Exit Fit to Screen" : "Fit to Screen"}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                  {isFitToScreen 
+                                    ? <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                                    : <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                                  }
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     <div className="customer-details-new">
@@ -3041,6 +3053,14 @@ const App = () => {
 
     const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>(() => (localStorage.getItem('invoiceTheme') as InvoiceTheme) || 'professional');
     useEffect(() => { localStorage.setItem('invoiceTheme', invoiceTheme); }, [invoiceTheme]);
+    
+    const [isFitToScreen, setIsFitToScreen] = useState<boolean>(() => {
+        return localStorage.getItem('isFitToScreen') === 'true';
+    });
+    useEffect(() => {
+        localStorage.setItem('isFitToScreen', String(isFitToScreen));
+    }, [isFitToScreen]);
+
 
     const initialSaleSession: SaleSession = useMemo(() => ({ customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, discount: 0, saleItems: [], amountPaid: '', returnReason: '', }), []);
     const [saleSessions, setSaleSessions] = useState<SaleSession[]>([ {...initialSaleSession}, {...initialSaleSession}, {...initialSaleSession} ]);
@@ -3433,6 +3453,8 @@ const App = () => {
                     activeBillIndex={activeBillIndex}
                     onBillChange={setActiveBillIndex}
                     currentShopId={currentUser.role === 'super_admin' ? selectedShopId : currentUser.shopId!}
+                    isFitToScreen={isFitToScreen}
+                    setIsFitToScreen={setIsFitToScreen}
                 />;
             case 'Product Inventory':
                 return <ProductInventoryPage products={productsForCurrentShop} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
