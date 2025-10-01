@@ -226,7 +226,7 @@ interface SalesOrder {
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
 type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
-type InvoiceTheme = 'professional' | 'modern' | 'classic' | 'minimalist';
+type InvoiceTheme = 'professional' | 'modern' | 'classic' | 'minimalist' | 'vintage' | 'midnight' | 'blueprint';
 type ViewMode = 'desktop' | 'mobile';
 
 
@@ -1855,6 +1855,9 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                             <option value="modern">Modern</option>
                             <option value="classic">Classic</option>
                             <option value="minimalist">Minimalist</option>
+                            <option value="vintage">Vintage</option>
+                            <option value="midnight">Midnight</option>
+                            <option value="blueprint">Blueprint</option>
                         </select>
                     </div>
                     <div className="form-group"><label htmlFor="font-style">Font Style</label><select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field"><option value="monospace">Monospace</option><option value="sans-serif">Sans-Serif</option><option value="serif">Serif</option><option value="inconsolata">Inconsolata</option><option value="roboto">Roboto</option><option value="merriweather">Merriweather</option><option value="playfair">Playfair Display</option></select></div>
