@@ -1196,11 +1196,19 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
 
     const handleSearchKeyDown = (e: React.KeyboardEvent) => {
         const totalOptions = suggestions.length + (showAddNewSuggestion ? 1 : 0);
-        if (e.key === 'ArrowDown') { e.preventDefault(); setActiveSuggestion(prev => (prev < totalOptions - 1 ? prev + 1 : prev)); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveSuggestion(prev => (prev > 0 ? prev - 1 : prev)); }
-        else if (e.key === 'Enter') {
+        if (e.key === 'ArrowDown') {
             e.preventDefault();
-            let selectionIndex = activeSuggestion === -1 && totalOptions > 0 ? 0 : activeSuggestion;
+            setActiveSuggestion(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiveSuggestion(prev => (prev > 0 ? prev - 1 : 0));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            let selectionIndex = activeSuggestion;
+            // If nothing is selected, but there are options, default to the first one on Enter.
+            if (selectionIndex === -1 && totalOptions > 0) {
+                selectionIndex = 0;
+            }
             if (selectionIndex >= 0) {
                 if (selectionIndex < suggestions.length) {
                     handleProductSelect(suggestions[selectionIndex]);
@@ -3274,12 +3282,15 @@ const App = () => {
     const fetchData = useCallback(async (shopId?: number) => {
         setIsLoading(true);
         try {
-            const [products, sales, customers, users, shops] = await Promise.all([
+            const [products, sales, customers, users, shops, expenses, purchaseOrders, salesOrders] = await Promise.all([
                 dbManager.getAll<Product>('products'),
                 dbManager.getAll<SaleData>('sales').then(sales => sales.map(s => ({ ...s, date: new Date(s.date) }))), // Ensure dates are Date objects
                 dbManager.getAll<Customer>('customers'),
                 dbManager.getAll<User>('users'),
                 dbManager.getAll<Shop>('shops'),
+                dbManager.getAll<Expense>('expenses').then(data => data.map(i => ({...i, date: new Date(i.date)}))),
+                dbManager.getAll<PurchaseOrder>('purchaseOrders').then(data => data.map(i => ({...i, orderDate: new Date(i.orderDate)}))),
+                dbManager.getAll<SalesOrder>('salesOrders').then(data => data.map(i => ({...i, orderDate: new Date(i.orderDate)})))
             ]);
 
             setAllProducts(products);
@@ -3287,6 +3298,9 @@ const App = () => {
             setCustomers(customers);
             setUsers(users);
             setShops(shops);
+            setExpenses(expenses);
+            setPurchaseOrders(purchaseOrders);
+            setSalesOrders(salesOrders);
             
             // On initial load, if no data, fetch from mock API and populate DB
             if (products.length === 0 && sales.length === 0 && customers.length === 0 && users.length === 0 && shops.length === 0) {
@@ -3358,322 +3372,306 @@ const App = () => {
     const handleBulkAddProducts = async (productsToAdd: Omit<Product, 'id' | 'shopId'>[]) => {
         if (currentUser?.role === 'cashier') throw new Error("Cashiers cannot add products.");
         if (!selectedShopId && currentUser?.role !== 'super_admin') throw new Error("Please select a shop first.");
-        
+
         const shopIdForProducts = currentUser?.role === 'super_admin' ? (selectedShopId || 1) : currentUser!.shopId!;
-        let nextId = Date.now();
-        const newProducts: Product[] = productsToAdd.map(p => ({
+        let timestamp = Date.now();
+
+        const fullProducts: Product[] = productsToAdd.map((p, index) => ({
             ...p,
-            id: nextId++,
-            shopId: shopIdForProducts,
+            id: timestamp + index,
+            shopId: shopIdForProducts
         }));
 
-        await dbManager.bulkPut('products', newProducts);
-        setAllProducts(prev => [...prev, ...newProducts]);
-        await dbManager.bulkPut('outbox', newProducts.map(p => ({ type: 'ADD_PRODUCT', payload: p })));
+        await dbManager.bulkPut('products', fullProducts);
+        setAllProducts(prev => [...prev, ...fullProducts]);
+
+        const outboxItems = fullProducts.map(p => ({ type: 'ADD_PRODUCT', payload: p }));
+        await dbManager.bulkPut('outbox', outboxItems);
         processSyncQueue();
     };
 
     const handleUpdateProduct = async (updatedProduct: Product) => {
+        // Only super admins can update product master data from the sales screen
         if (currentUser?.role !== 'super_admin') return;
-        setAllProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+
         await dbManager.put('products', updatedProduct);
+        setAllProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
         await dbManager.put('outbox', { type: 'UPDATE_PRODUCT', payload: updatedProduct });
         processSyncQueue();
     };
     
     const handleDeleteProducts = async (productIds: number[]) => {
-        if (currentUser?.role === 'cashier') throw new Error("Cashiers cannot perform this action.");
+        if (currentUser?.role === 'cashier') throw new Error("Cashiers cannot delete products.");
+        
         await dbManager.bulkDelete('products', productIds);
         setAllProducts(prev => prev.filter(p => !productIds.includes(p.id)));
-        await dbManager.bulkPut('outbox', productIds.map(id => ({ type: 'DELETE_PRODUCT', payload: { id } })));
+
+        const outboxItems = productIds.map(id => ({ type: 'DELETE_PRODUCT', payload: { id } }));
+        await dbManager.bulkPut('outbox', outboxItems);
         processSyncQueue();
     };
 
-    // Customer Handlers
-    const handleAddCustomer = async (newCustomer: Omit<Customer, 'balance'>) => {
-        const customerToAdd = { ...newCustomer, balance: 0 };
-        await dbManager.put('customers', customerToAdd);
-        setCustomers(prev => [...prev, customerToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_CUSTOMER', payload: customerToAdd });
-        processSyncQueue();
-    };
-
-    // Sale Handlers
-    const handleSessionUpdate = (updates: Partial<SaleSession>) => {
-        setSaleSessions(prev => {
-            const newSessions = [...prev];
-            newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates };
-            return newSessions;
-        });
-    };
-
+    // Sale & Invoice Handlers
     const handlePreviewInvoice = (saleData: SaleData) => {
         setPendingSaleData(saleData);
         setIsSaleFinalized(false);
         setCurrentPage('Invoice');
     };
 
-    const handleCompleteSale = async () => {
-        if (!pendingSaleData) return;
-
-        const saleToAdd = { ...pendingSaleData, id: `sale-${Date.now()}` };
-        
-        // Update customer balance
-        const customer = await dbManager.get<Customer>('customers', saleToAdd.customerMobile);
-        if (customer) {
-            const updatedCustomer: Customer = { ...customer, balance: saleToAdd.totalBalanceDue };
-            await dbManager.put('customers', updatedCustomer);
-            setCustomers(prev => prev.map(c => c.mobile === updatedCustomer.mobile ? updatedCustomer : c));
-            await dbManager.put('outbox', { type: 'UPDATE_CUSTOMER', payload: updatedCustomer });
-        } else if (saleToAdd.customerMobile && saleToAdd.totalBalanceDue > 0) {
-            const newCustomer: Customer = { name: saleToAdd.customerName, mobile: saleToAdd.customerMobile, balance: saleToAdd.totalBalanceDue };
-            await dbManager.put('customers', newCustomer);
-            setCustomers(prev => [...prev, newCustomer]);
-            await dbManager.put('outbox', { type: 'ADD_CUSTOMER', payload: newCustomer });
-        }
-
-        // Update product stock
-        const productUpdates = saleToAdd.saleItems.map(item => {
-            const product = allProducts.find(p => p.id === item.productId);
-            if (!product) return null;
-            const quantityChange = item.isReturn ? item.quantity : -item.quantity;
-            return { ...product, stock: product.stock + quantityChange };
-        }).filter((p): p is Product => p !== null);
-        
-        await dbManager.bulkPut('products', productUpdates);
-        setAllProducts(prev => prev.map(p => productUpdates.find(up => up.id === p.id) || p));
-        await dbManager.bulkPut('outbox', productUpdates.map(p => ({ type: 'UPDATE_PRODUCT_STOCK', payload: { id: p.id, stock: p.stock } })));
-
-        // Add sale to history
-        await dbManager.put('sales', saleToAdd);
-        setAllSalesHistory(prev => [...prev, saleToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_SALE', payload: saleToAdd });
-
-        // Reset current bill
-        setSaleSessions(prev => {
-            const newSessions = [...prev];
-            newSessions[activeBillIndex] = {...initialSaleSession};
-            return newSessions;
-        });
-        
-        setPendingSaleData(saleToAdd);
-        setIsSaleFinalized(true);
-        processSyncQueue();
-    };
-    
     const handleViewInvoice = (sale: SaleData) => {
         setPendingSaleData(sale);
         setIsSaleFinalized(true);
         setCurrentPage('Invoice');
     };
     
-    // Expense Handlers
+    const handleCompleteSale = async () => {
+        if (!pendingSaleData || !currentUser || (!currentUser.shopId && currentUser.role !== 'super_admin')) {
+            alert("Cannot complete sale: Missing data or user context.");
+            return;
+        }
+
+        const saleToFinalize: SaleData = {
+            ...pendingSaleData,
+            id: `sale-${Date.now()}`
+        };
+        
+        const updatedProducts: Product[] = [];
+        const newAllProducts = [...allProducts];
+        for (const item of saleToFinalize.saleItems) {
+            const productIndex = newAllProducts.findIndex(p => p.id === item.productId);
+            if (productIndex !== -1) {
+                const product = { ...newAllProducts[productIndex] };
+                product.stock += item.isReturn ? item.quantity : -item.quantity;
+                newAllProducts[productIndex] = product;
+                updatedProducts.push(product);
+            }
+        }
+        await dbManager.bulkPut('products', updatedProducts);
+        setAllProducts(newAllProducts);
+
+        let updatedCustomer: Customer | null = null;
+        if (saleToFinalize.customerMobile) {
+            const existingCustomer = await dbManager.get<Customer>('customers', saleToFinalize.customerMobile);
+            updatedCustomer = {
+                name: saleToFinalize.customerName,
+                mobile: saleToFinalize.customerMobile,
+                balance: saleToFinalize.totalBalanceDue
+            };
+            await dbManager.put('customers', updatedCustomer);
+            setCustomers(prev => existingCustomer 
+                ? prev.map(c => c.mobile === updatedCustomer!.mobile ? updatedCustomer! : c) 
+                : [...prev, updatedCustomer]);
+        }
+        
+        await dbManager.put('sales', saleToFinalize);
+        setAllSalesHistory(prev => [...prev, saleToFinalize]);
+
+        const outboxItems: any[] = [{ type: 'ADD_SALE', payload: saleToFinalize }];
+        updatedProducts.forEach(p => outboxItems.push({ type: 'UPDATE_PRODUCT', payload: p }));
+        if (updatedCustomer) outboxItems.push({ type: 'UPDATE_CUSTOMER', payload: updatedCustomer });
+        await dbManager.bulkPut('outbox', outboxItems);
+        processSyncQueue();
+
+        setIsSaleFinalized(true);
+        const newSessions = [...saleSessions];
+        newSessions[activeBillIndex] = { ...initialSaleSession };
+        setSaleSessions(newSessions);
+    };
+
+    const handleSessionUpdate = (updates: Partial<SaleSession>) => {
+        const newSessions = [...saleSessions];
+        newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates };
+        setSaleSessions(newSessions);
+    };
+
+    const handleBillChange = (index: number) => {
+        setActiveBillIndex(index);
+    };
+
+    // Customer Handlers
+    const handleAddCustomer = async (newCustomerData: Omit<Customer, 'balance'>) => {
+        const existing = await dbManager.get<Customer>('customers', newCustomerData.mobile);
+        if (existing) throw new Error("A customer with this mobile number already exists.");
+        
+        const newCustomer: Customer = { ...newCustomerData, balance: 0 };
+        await dbManager.put('customers', newCustomer);
+        setCustomers(prev => [...prev, newCustomer]);
+        await dbManager.put('outbox', { type: 'ADD_CUSTOMER', payload: newCustomer });
+        processSyncQueue();
+    };
+
+    // Expenses Handlers
     const handleAddExpense = async (description: string, amount: number) => {
-        if (!selectedShopId) { throw new Error("No shop selected to assign the expense to."); }
-        const expenseToAdd: Expense = { id: Date.now(), shopId: selectedShopId, date: new Date(), description, amount };
-        await dbManager.put('expenses', expenseToAdd);
-        setExpenses(prev => [...prev, expenseToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_EXPENSE', payload: expenseToAdd });
-        processSyncQueue();
-    };
-    
-    // Order Handlers
-    const handleAddPurchaseOrder = async (orderData: Omit<PurchaseOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
-        if (!selectedShopId) { throw new Error("No shop selected."); }
-        const orderToAdd: PurchaseOrder = { ...orderData, id: Date.now(), shopId: selectedShopId, orderDate: new Date(), status: 'Pending' };
-        await dbManager.put('purchaseOrders', orderToAdd);
-        setPurchaseOrders(prev => [...prev, orderToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_PO', payload: orderToAdd });
+        const shopId = selectedShopId || currentUser?.shopId;
+        if (!shopId) throw new Error("Cannot add expense without an assigned shop.");
+        const newExpense: Expense = {
+            id: Date.now(),
+            shopId,
+            date: new Date(),
+            description,
+            amount
+        };
+        await dbManager.put('expenses', newExpense);
+        setExpenses(prev => [...prev, newExpense]);
+        await dbManager.put('outbox', { type: 'ADD_EXPENSE', payload: newExpense });
         processSyncQueue();
     };
 
-    const handleAddSalesOrder = async (orderData: Omit<SalesOrder, 'id' | 'shopId' | 'orderDate' | 'status'>) => {
-        if (!selectedShopId) { throw new Error("No shop selected."); }
-        const orderToAdd: SalesOrder = { ...orderData, id: Date.now(), shopId: selectedShopId, orderDate: new Date(), status: 'Pending' };
-        await dbManager.put('salesOrders', orderToAdd);
-        setSalesOrders(prev => [...prev, orderToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_SO', payload: orderToAdd });
-        processSyncQueue();
-    };
-
-    const handleUpdateOrderStatus = async (orderId: number, orderType: 'purchase' | 'sales', newStatus: OrderStatus) => {
-        if (orderType === 'purchase') {
-            const order = purchaseOrders.find(o => o.id === orderId);
-            if (!order) return;
-            const updatedOrder = { ...order, status: newStatus };
-            await dbManager.put('purchaseOrders', updatedOrder);
-            setPurchaseOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-            await dbManager.put('outbox', { type: 'UPDATE_PO_STATUS', payload: { id: orderId, status: newStatus } });
-            
-            // If fulfilled, update stock
-            if (newStatus === 'Fulfilled') {
-                const stockUpdates = updatedOrder.items.map(item => {
-                    const product = allProducts.find(p => p.id === item.productId);
-                    return product ? { ...product, stock: product.stock + item.quantity } : null;
-                }).filter((p): p is Product => p !== null);
-                await dbManager.bulkPut('products', stockUpdates);
-                setAllProducts(prev => prev.map(p => stockUpdates.find(up => up.id === p.id) || p));
-                await dbManager.bulkPut('outbox', stockUpdates.map(p => ({ type: 'UPDATE_PRODUCT_STOCK', payload: { id: p.id, stock: p.stock } })));
-            }
-        } else {
-            // Logic for Sales Order (similar, but stock decreases)
-            const order = salesOrders.find(o => o.id === orderId);
-            if (!order) return;
-            const updatedOrder = { ...order, status: newStatus };
-            await dbManager.put('salesOrders', updatedOrder);
-            setSalesOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-            await dbManager.put('outbox', { type: 'UPDATE_SO_STATUS', payload: { id: orderId, status: newStatus } });
-            
-            if (newStatus === 'Fulfilled') {
-                 const stockUpdates = updatedOrder.items.map(item => {
-                    const product = allProducts.find(p => p.id === item.productId);
-                    return product ? { ...product, stock: product.stock - item.quantity } : null;
-                }).filter((p): p is Product => p !== null);
-                await dbManager.bulkPut('products', stockUpdates);
-                setAllProducts(prev => prev.map(p => stockUpdates.find(up => up.id === p.id) || p));
-                await dbManager.bulkPut('outbox', stockUpdates.map(p => ({ type: 'UPDATE_PRODUCT_STOCK', payload: { id: p.id, stock: p.stock } })));
-            }
-        }
-        processSyncQueue();
-    };
-
-    const handleUpdateOrder = async (orderId: number, orderType: 'purchase' | 'sales', orderData: any) => {
-        if (orderType === 'purchase') {
-            const existingOrder = purchaseOrders.find(o => o.id === orderId);
-            if (!existingOrder) throw new Error("Order not found.");
-            const updatedOrder: PurchaseOrder = { ...existingOrder, ...orderData };
-            await dbManager.put('purchaseOrders', updatedOrder);
-            setPurchaseOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-            await dbManager.put('outbox', { type: 'UPDATE_PO', payload: updatedOrder });
-        } else {
-            const existingOrder = salesOrders.find(o => o.id === orderId);
-            if (!existingOrder) throw new Error("Order not found.");
-            const updatedOrder: SalesOrder = { ...existingOrder, ...orderData };
-            await dbManager.put('salesOrders', updatedOrder);
-            setSalesOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
-            await dbManager.put('outbox', { type: 'UPDATE_SO', payload: updatedOrder });
-        }
-        processSyncQueue();
-    };
-
-
-    // Shop/User Management
+    // Shop & User Management Handlers (Super Admin only)
     const handleAddShop = async (name: string) => {
-        const shopToAdd: Shop = { id: Date.now(), name };
-        await dbManager.put('shops', shopToAdd);
-        setShops(prev => [...prev, shopToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_SHOP', payload: shopToAdd });
-        processSyncQueue();
+        const newShop: Shop = { id: Date.now(), name };
+        await dbManager.put('shops', newShop);
+        setShops(prev => [...prev, newShop]);
     };
-
-    const handleUpdateShop = async (id: number, name: string) => {
-        const shopToUpdate = { id, name };
-        await dbManager.put('shops', shopToUpdate);
-        setShops(prev => prev.map(s => s.id === id ? shopToUpdate : s));
-        await dbManager.put('outbox', { type: 'UPDATE_SHOP', payload: shopToUpdate });
-        processSyncQueue();
-    };
-
-    const handleAddUser = async (userData: Omit<User, 'password'> & { password?: string }) => {
-        const userToAdd: User = { ...userData, password: userData.password || 'password' }; // Set a default/temp password
+    const handleAddUser = async (userData: Omit<User, 'password' | 'resetToken' | 'resetTokenExpiry'> & { password?: string }) => {
+        const userToAdd: User = { ...userData, password: userData.password };
         await dbManager.put('users', userToAdd);
         setUsers(prev => [...prev, userToAdd]);
-        await dbManager.put('outbox', { type: 'ADD_USER', payload: { ...userData, password: '***' } }); // Don't sync password
-        processSyncQueue();
     };
-
+    const handleUpdateShop = async (id: number, name: string) => {
+        const shop = await dbManager.get<Shop>('shops', id);
+        if (shop) {
+            const updatedShop = { ...shop, name };
+            await dbManager.put('shops', updatedShop);
+            setShops(prev => prev.map(s => s.id === id ? updatedShop : s));
+        }
+    };
     const handleAdminPasswordReset = async (username: string, newPass: string) => {
         const user = await dbManager.get<User>('users', username);
-        if (!user) { alert("User not found."); return; }
-        const updatedUser = { ...user, password: newPass };
+        if (user) {
+            const updatedUser = { ...user, password: newPass };
+            await dbManager.put('users', updatedUser);
+            alert(`Password for ${username} has been reset.`);
+        }
+    };
+    
+    // Auth Recovery Handlers
+    const handleForgotPasswordRequest = async (usernameOrEmail: string) => {
+        // Mock implementation
+        const user = (await dbManager.getAll<User>('users')).find(u => u.username === usernameOrEmail || u.email === usernameOrEmail);
+        if (!user) throw new Error("User not found.");
+        const token = `reset-token-${user.username}-${Date.now()}`;
+        const expiry = Date.now() + 3600000; // 1 hour
+        await dbManager.put('users', { ...user, resetToken: token, resetTokenExpiry: expiry });
+        // In a real app, you'd email a link. Here, we'll alert and log it.
+        alert(`Password reset initiated for ${user.username}. Use this token to reset: ${token}`);
+        console.log(`Reset link: ${window.location.origin}?reset_token=${token}`);
+    };
+    const handleResetPassword = async (token: string, newPass: string) => {
+        // Mock implementation
+        const users = await dbManager.getAll<User>('users');
+        const user = users.find(u => u.resetToken === token);
+        if (!user || (user.resetTokenExpiry && user.resetTokenExpiry < Date.now())) {
+            throw new Error("Invalid or expired token.");
+        }
+        const updatedUser = { ...user, password: newPass, resetToken: undefined, resetTokenExpiry: undefined };
         await dbManager.put('users', updatedUser);
-        alert(`Password for ${username} has been updated.`);
-        await dbManager.put('outbox', { type: 'RESET_PASSWORD', payload: { username } });
-        processSyncQueue();
+        alert("Password has been successfully reset. Please log in.");
+        setAuthView('login');
+    };
+    
+    // Order Management Handlers
+    const handleAddOrder = async (orderData: any, type: 'purchase' | 'sales') => {
+        const shopId = selectedShopId || currentUser?.shopId;
+        if (!shopId) throw new Error("Cannot create an order without a shop context.");
+        const storeName = type === 'purchase' ? 'purchaseOrders' : 'salesOrders';
+        const newOrder = {
+            ...orderData,
+            id: Date.now(),
+            shopId,
+            orderDate: new Date(),
+            status: 'Pending' as OrderStatus,
+        };
+        await dbManager.put(storeName, newOrder);
+        if (type === 'purchase') setPurchaseOrders(prev => [...prev, newOrder]);
+        else setSalesOrders(prev => [...prev, newOrder]);
+    };
+    const handleUpdateOrder = async (orderId: number, type: 'purchase' | 'sales', orderData: any) => {
+         const storeName = type === 'purchase' ? 'purchaseOrders' : 'salesOrders';
+         const order = await dbManager.get<PurchaseOrder | SalesOrder>(storeName, orderId);
+         if(order) {
+            const updatedOrder = {...order, ...orderData};
+            await dbManager.put(storeName, updatedOrder);
+            if(type === 'purchase') setPurchaseOrders(prev => prev.map(o => o.id === orderId ? updatedOrder as PurchaseOrder : o));
+            else setSalesOrders(prev => prev.map(o => o.id === orderId ? updatedOrder as SalesOrder : o));
+         }
+    };
+    const handleUpdateOrderStatus = async (orderId: number, type: 'purchase' | 'sales', newStatus: OrderStatus) => {
+        const storeName = type === 'purchase' ? 'purchaseOrders' : 'salesOrders';
+        const order = await dbManager.get<PurchaseOrder | SalesOrder>(storeName, orderId);
+        if (!order) return;
+
+        const updatedOrder = { ...order, status: newStatus };
+        
+        if (newStatus === 'Fulfilled') {
+            const productUpdates: Product[] = [];
+            const currentProducts = [...allProducts];
+            for (const item of order.items) {
+                const productIndex = currentProducts.findIndex(p => p.id === item.productId);
+                if (productIndex > -1) {
+                    const stockChange = type === 'purchase' ? item.quantity : -item.quantity;
+                    currentProducts[productIndex].stock += stockChange;
+                    productUpdates.push(currentProducts[productIndex]);
+                }
+            }
+            await dbManager.bulkPut('products', productUpdates);
+            setAllProducts(currentProducts);
+        }
+
+        await dbManager.put(storeName, updatedOrder);
+        if (type === 'purchase') setPurchaseOrders(prev => prev.map(o => o.id === orderId ? updatedOrder as PurchaseOrder : o));
+        else setSalesOrders(prev => prev.map(o => o.id === orderId ? updatedOrder as SalesOrder : o));
     };
 
+    // Filtered data based on selected shop
+    const productsForShop = useMemo(() => {
+        if (!selectedShopId) return allProducts;
+        return allProducts.filter(p => p.shopId === selectedShopId);
+    }, [allProducts, selectedShopId]);
+
+    const salesForShop = useMemo(() => {
+        if (!selectedShopId) return allSalesHistory;
+        return allSalesHistory.filter(s => s.shopId === selectedShopId);
+    }, [allSalesHistory, selectedShopId]);
+    
+    const customersWithBalance = useMemo(() => customers.filter(c => c.balance > 0), [customers]);
+    
+    // Navigation
+    const handleNavigate = (page: string) => {
+        setCurrentPage(page);
+    };
+
+    if (isLoading) return <div className="loading-screen">Loading application...</div>;
+    if (appError) return <div className="error-screen">{appError}</div>;
+    
+    if (!currentUser) {
+        if (authView === 'login') return <LoginPage onLogin={handleLogin} onNavigateToForgotPassword={() => setAuthView('forgot')} />;
+        if (authView === 'forgot') return <ForgotPasswordPage onForgotPasswordRequest={handleForgotPasswordRequest} onNavigateToLogin={() => setAuthView('login')} />;
+        return <ResetPasswordPage token={tokenForReset} onResetPassword={handleResetPassword} onNavigateToLogin={() => setAuthView('login')} />;
+    }
 
     const renderPage = () => {
-        const productsForShop = allProducts.filter(p => !selectedShopId || p.shopId === selectedShopId);
-        const salesForShop = allSalesHistory.filter(s => !selectedShopId || s.shopId === selectedShopId);
-        const expensesForShop = expenses.filter(e => !selectedShopId || e.shopId === selectedShopId);
-        const purchaseOrdersForShop = purchaseOrders.filter(po => !selectedShopId || po.shopId === selectedShopId);
-        const salesOrdersForShop = salesOrders.filter(so => !selectedShopId || so.shopId === selectedShopId);
-
-        if (isLoading) return <div>Loading...</div>;
         switch (currentPage) {
-            case 'New Sale': return <NewSalePage products={productsForShop} customers={customers} salesHistory={allSalesHistory} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser!.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={handleSessionUpdate} activeBillIndex={activeBillIndex} onBillChange={setActiveBillIndex} currentShopId={selectedShopId} isFitToScreen={isFitToScreen} setIsFitToScreen={setIsFitToScreen} />;
+            case 'New Sale': return <NewSalePage products={productsForShop} customers={customers} salesHistory={salesForShop} onPreviewInvoice={handlePreviewInvoice} onViewInvoice={handleViewInvoice} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} userRole={currentUser.role} sessionData={saleSessions[activeBillIndex]} onSessionUpdate={handleSessionUpdate} activeBillIndex={activeBillIndex} onBillChange={handleBillChange} currentShopId={selectedShopId} isFitToScreen={isFitToScreen} setIsFitToScreen={setIsFitToScreen} />;
             case 'Product Inventory': return <ProductInventoryPage products={productsForShop} onAddProduct={handleAddProduct} onBulkAddProducts={handleBulkAddProducts} onDeleteProducts={handleDeleteProducts} shops={shops} />;
-            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={setCurrentPage} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} theme={invoiceTheme} onThemeChange={setInvoiceTheme} />;
+            case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} salesHistory={allSalesHistory} onViewInvoice={handleViewInvoice}/>;
+            case 'Invoice': return <InvoicePage saleData={pendingSaleData} onNavigate={handleNavigate} settings={appSettings} onSettingsChange={setAppSettings} isFinalized={isSaleFinalized} onCompleteSale={handleCompleteSale} margins={invoiceMargins} onMarginsChange={setInvoiceMargins} offsets={invoiceTextOffsets} onOffsetsChange={setInvoiceTextOffsets} fontStyle={invoiceFontStyle} onFontStyleChange={setInvoiceFontStyle} theme={invoiceTheme} onThemeChange={setInvoiceTheme} />;
             case 'Notes': return <NotesPage notes={notes} setNotes={setNotes} />;
-            case 'Customer Management': return <CustomerManagementPage customers={customers} onAddCustomer={handleAddCustomer} salesHistory={allSalesHistory} onViewInvoice={handleViewInvoice} />;
-            case 'Balance Due': return <BalanceDuePage customersWithBalance={customers.filter(c => c.balance > 0)} />;
-            case 'Expenses': return <ExpensesPage expenses={expensesForShop} onAddExpense={handleAddExpense} shops={shops} />;
-            case 'Dashboard': return <DashboardAndReportsPage salesHistory={salesForShop} products={allProducts} shops={shops} onViewInvoice={handleViewInvoice} />;
+            case 'Balance Due': return <BalanceDuePage customersWithBalance={customersWithBalance} />;
+            case 'Dashboard': return <DashboardAndReportsPage salesHistory={salesForShop} products={productsForShop} onViewInvoice={handleViewInvoice} shops={shops} />;
+            case 'Expenses': return <ExpensesPage expenses={expenses} onAddExpense={handleAddExpense} shops={shops} />;
+            case 'Order Management': return <OrderManagementPage purchaseOrders={purchaseOrders} salesOrders={salesOrders} products={productsForShop} currentShopId={selectedShopId} onAddPurchaseOrder={(o) => handleAddOrder(o, 'purchase')} onAddSalesOrder={(o) => handleAddOrder(o, 'sales')} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
             case 'Settings': return <SettingsPage theme={theme} onThemeChange={setTheme} settings={appSettings} onSettingsChange={setAppSettings} appName={appName} onAppNameChange={setAppName} onExportData={onExportData} onImportData={onImportData} isExporting={isExporting} isImporting={isImporting} />;
             case 'Manage Users': return <ShopManagementPage users={users} shops={shops} onAddShop={handleAddShop} onAddUser={handleAddUser} onUpdateShop={handleUpdateShop} onAdminPasswordReset={handleAdminPasswordReset} />;
-            case 'Order Management': return <OrderManagementPage purchaseOrders={purchaseOrdersForShop} salesOrders={salesOrdersForShop} products={productsForShop} currentShopId={selectedShopId} onAddPurchaseOrder={handleAddPurchaseOrder} onAddSalesOrder={handleAddSalesOrder} onUpdateOrderStatus={handleUpdateOrderStatus} onUpdateOrder={handleUpdateOrder} />;
             default: return <div>Page not found</div>;
         }
     };
-    
-    // Auth-related navigation
-    const handleForgotPasswordRequest = async (usernameOrEmail: string) => {
-        // In this mock, we'll find the user and create a fake token.
-        // In a real app, this would be an API call that sends an email.
-        const user = users.find(u => u.username === usernameOrEmail || u.email === usernameOrEmail);
-        if (user) {
-            const token = `fake-reset-token-for-${user.username}`;
-            // Store token and expiry in DB
-            const updatedUser = { ...user, resetToken: token, resetTokenExpiry: Date.now() + 3600000 };
-            await dbManager.put('users', updatedUser);
-            setUsers(prev => prev.map(u => u.username === user.username ? updatedUser : u));
-            alert(`Password reset initiated for ${user.username}. Use this token to reset: ${token}`);
-            // In a real app, you would not show the token here.
-        } else {
-            throw new Error("User not found.");
-        }
-    };
-    const handleResetPassword = async (token: string, newPass: string) => {
-        // Find user by token
-        const user = users.find(u => u.resetToken === token && (u.resetTokenExpiry || 0) > Date.now());
-        if (user) {
-            const updatedUser = { ...user, password: newPass, resetToken: undefined, resetTokenExpiry: undefined };
-            await dbManager.put('users', updatedUser);
-            setUsers(prev => prev.map(u => u.username === user.username ? updatedUser : u));
-            alert("Password has been successfully reset. Please log in.");
-            setAuthView('login');
-        } else {
-            throw new Error("Invalid or expired reset token.");
-        }
-    };
-
-    if (!currentUser) {
-        if (authView === 'forgot') return <ForgotPasswordPage onForgotPasswordRequest={handleForgotPasswordRequest} onNavigateToLogin={() => setAuthView('login')} />;
-        if (authView === 'reset') return <ResetPasswordPage token={tokenForReset} onResetPassword={handleResetPassword} onNavigateToLogin={() => setAuthView('login')} />;
-        return <LoginPage onLogin={handleLogin} onNavigateToForgotPassword={() => setAuthView('forgot')} />;
-    }
 
     return (
         <>
             {!apiKey && <ApiKeyBanner />}
-            <AppHeader
-                onNavigate={setCurrentPage}
-                currentUser={currentUser}
-                onLogout={handleLogout}
-                appName={appName}
-                shops={shops}
-                selectedShopId={selectedShopId}
-                onShopChange={(id) => {
-                    setSelectedShopId(id === 0 ? null : id);
-                    if (id !== 0) setCurrentPage('New Sale');
-                }}
-                syncStatus={syncStatus}
-                pendingSyncCount={pendingSyncCount}
-            />
-            <main className="app-main">
-                {appError ? <div className="error-state">{appError}</div> : renderPage()}
-            </main>
+            <AppHeader onNavigate={handleNavigate} currentUser={currentUser} onLogout={handleLogout} appName={appName} shops={shops} selectedShopId={selectedShopId} onShopChange={setSelectedShopId} syncStatus={syncStatus} pendingSyncCount={pendingSyncCount} />
+            <main className="app-main">{renderPage()}</main>
         </>
     );
 };
