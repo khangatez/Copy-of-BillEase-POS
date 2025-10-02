@@ -1691,3 +1691,47 @@ body {
 .font-style-monospace, .font-style-inconsolata, .font-style-source-code-pro { font-family: 'Inconsolata', 'Source Code Pro', monospace; }
 .font-style-sans-serif, .font-style-roboto, .font-style-lato { font-family: 'Roboto', 'Lato', 'Inter', sans-serif; }
 .font-style-serif, .font-style-merriweather, .font-style-playfair, .font-style-georgia { font-family: 'Merriweather', 'Playfair Display', 'Georgia', serif; }
+
+/* --- PRINT STYLES --- */
+@media print {
+  /* Hide elements that should not be printed */
+  .app-header, 
+  .api-key-banner, 
+  .invoice-settings-pane {
+    display: none;
+  }
+
+  /* Reset layout of parent containers to remove spacing */
+  body, #root, .app-main, .page-container, .invoice-page-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    max-width: 100% !important;
+  }
+  
+  /* The pane containing the invoice should just be a simple container */
+  .invoice-preview-pane {
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    width: 100%;
+    max-width: 100%;
+    display: block;
+  }
+
+  /* Style the invoice paper itself for printing */
+  .invoice-paper {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important; /* Align to top-left */
+    -webkit-print-color-adjust: exact !important; /* Ensure colors and backgrounds print */
+    color-adjust: exact !important;
+    /* User-defined paper size (e.g., width from .size-4inch) and internal padding should be respected */
+  }
+
+  /* Control the print page itself */
+  @page {
+    size: auto;
+    margin: 0;
+  }
+}
