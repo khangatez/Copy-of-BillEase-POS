@@ -1588,6 +1588,15 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set());
     const [isDeleting, setIsDeleting] = useState(false);
     const [confirmingDeleteIds, setConfirmingDeleteIds] = useState<number[] | null>(null);
+    
+    // --- VIRTUALIZATION STATE AND REFS ---
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scrollTop, setScrollTop] = useState(0);
+
+    // NOTE: This height should be kept in sync with the CSS for table rows.
+    // It's crucial for accurate virtualization calculations. A typical row with 12px padding is ~55px.
+    const ROW_HEIGHT = 55;
+    const OVERSCAN_COUNT = 5; // Render items above and below the viewport for smoother scrolling
 
     const filteredProducts = useMemo(() => {
         const filtered = searchTerm
@@ -1601,9 +1610,39 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             })
             : products;
         
-        // Sort alphabetically by product name for easier scanning
         return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
     }, [products, searchTerm]);
+
+    // --- VIRTUALIZATION LOGIC ---
+    const handleScroll = useCallback(() => {
+        if (containerRef.current) {
+            setScrollTop(containerRef.current.scrollTop);
+        }
+    }, []);
+
+    const {
+        virtualItems,
+        topPaddingHeight,
+        bottomPaddingHeight,
+        startIndex,
+    } = useMemo(() => {
+        const totalItems = filteredProducts.length;
+        if (totalItems === 0) {
+            return { virtualItems: [], topPaddingHeight: 0, bottomPaddingHeight: 0, startIndex: 0 };
+        }
+        
+        const containerHeight = containerRef.current?.clientHeight || window.innerHeight * 0.75; // Fallback height
+
+        const calculatedStartIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_COUNT);
+        const visibleItemCount = Math.ceil(containerHeight / ROW_HEIGHT);
+        const calculatedEndIndex = Math.min(totalItems - 1, calculatedStartIndex + visibleItemCount + (OVERSCAN_COUNT * 2));
+        
+        const virtualItems = filteredProducts.slice(calculatedStartIndex, calculatedEndIndex + 1);
+        const topPaddingHeight = calculatedStartIndex * ROW_HEIGHT;
+        const bottomPaddingHeight = (totalItems - (calculatedEndIndex + 1)) * ROW_HEIGHT;
+        
+        return { virtualItems, topPaddingHeight, bottomPaddingHeight, startIndex: calculatedStartIndex };
+    }, [scrollTop, filteredProducts]);
 
     const handleSelectProduct = (productId: number) => {
         setSelectedProducts(prev => {
@@ -1620,17 +1659,16 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         const filteredIds = filteredProducts.map(p => p.id);
         if (e.target.checked) {
-            setSelectedProducts(prev => new Set([...prev, ...filteredIds]));
+            setSelectedProducts(new Set(filteredIds));
         } else {
-            setSelectedProducts(prev => {
-                const newSet = new Set(prev);
-                filteredIds.forEach(id => newSet.delete(id));
-                return newSet;
-            });
+            setSelectedProducts(new Set());
         }
     };
     
-    const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProducts.has(p.id));
+    const areAllFilteredSelected = useMemo(() => {
+        if (filteredProducts.length === 0) return false;
+        return filteredProducts.every(p => selectedProducts.has(p.id));
+    }, [filteredProducts, selectedProducts]);
 
     const handleDeleteClick = (productId: number) => {
         setConfirmingDeleteIds([productId]);
@@ -1659,7 +1697,6 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
             setConfirmingDeleteIds(null);
         }
     };
-
 
     const handleExportPdf = () => {
         const doc = new jsPDF();
@@ -1757,11 +1794,11 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                 </div>
             </div>
             <div className="inventory-layout">
-                <div className="inventory-list-container">
+                <div ref={containerRef} onScroll={handleScroll} className="inventory-list-container">
                      <table className="inventory-table">
                         <thead>
                             <tr>
-                                <th><input type="checkbox" onChange={handleSelectAll} checked={areAllFilteredSelected} title="Select all visible products" /></th>
+                                <th><input type="checkbox" onChange={handleSelectAll} checked={areAllFilteredSelected} title="Select all filtered products" /></th>
                                 <th>S.No</th>
                                 <th>Name (English)</th>
                                 <th>Name (Tamil)</th>
@@ -1775,30 +1812,35 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredProducts.length === 0 && (
+                            {filteredProducts.length === 0 ? (
                                 <tr><td colSpan={11} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No products found.</td></tr>
+                            ) : (
+                                <>
+                                    {topPaddingHeight > 0 && <tr style={{ height: topPaddingHeight }} />}
+                                    {virtualItems.map((p, index) => (
+                                        <tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''} style={{ height: `${ROW_HEIGHT}px` }}>
+                                            <td><input type="checkbox" checked={selectedProducts.has(p.id)} onChange={() => handleSelectProduct(p.id)} /></td>
+                                            <td data-label="S.No">{startIndex + index + 1}</td>
+                                            <td data-label="Name (English)">{p.name}</td>
+                                            <td data-label="Name (Tamil)">{p.nameTamil || 'N/A'}</td>
+                                            <td data-label="Category">{p.category || 'N/A'}</td>
+                                            <td data-label="Subcategory">{p.subcategory || 'N/A'}</td>
+                                            <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
+                                            <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
+                                            <td data-label="Stock">{p.stock}</td>
+                                            <td data-label="Barcode">{p.barcode || 'N/A'}</td>
+                                            <td data-label="Actions">
+                                                <div className="table-action-buttons">
+                                                    <button className="action-button-danger" onClick={() => handleDeleteClick(p.id)} disabled={isDeleting}>
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {bottomPaddingHeight > 0 && <tr style={{ height: bottomPaddingHeight }} />}
+                                </>
                             )}
-                            {filteredProducts.map((p, index) => (
-                                <tr key={p.id} className={p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}>
-                                    <td><input type="checkbox" checked={selectedProducts.has(p.id)} onChange={() => handleSelectProduct(p.id)} /></td>
-                                    <td data-label="S.No">{index + 1}</td>
-                                    <td data-label="Name (English)">{p.name}</td>
-                                    <td data-label="Name (Tamil)">{p.nameTamil || 'N/A'}</td>
-                                    <td data-label="Category">{p.category || 'N/A'}</td>
-                                    <td data-label="Subcategory">{p.subcategory || 'N/A'}</td>
-                                    <td data-label="B2B Price">{formatCurrency(p.b2bPrice)}</td>
-                                    <td data-label="B2C Price">{formatCurrency(p.b2cPrice)}</td>
-                                    <td data-label="Stock">{p.stock}</td>
-                                    <td data-label="Barcode">{p.barcode || 'N/A'}</td>
-                                    <td data-label="Actions">
-                                        <div className="table-action-buttons">
-                                            <button className="action-button-danger" onClick={() => handleDeleteClick(p.id)} disabled={isDeleting}>
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
                         </tbody>
                     </table>
                 </div>
