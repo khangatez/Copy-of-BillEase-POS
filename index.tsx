@@ -1276,6 +1276,16 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
 
     const [mobileCode, mobileNumber] = useMemo(() => {
         const mobile = customerMobile || '+91';
+
+        // Prioritize +91 to solve ambiguity for Indian numbers, which is the user's reported issue.
+        // This ensures that any digits typed after "+91" go into the number field,
+        // instead of being greedily matched as part of the country code by the regex below.
+        if (mobile.startsWith('+91')) {
+            return ['+91', mobile.substring(3)];
+        }
+
+        // Fallback to original logic for other international codes.
+        // This may still have issues with short codes (e.g., +1) but solves the primary problem.
         const match = mobile.match(/^(\+\d{1,4})(.*)$/);
         if (match) {
             return [match[1], match[2]];
