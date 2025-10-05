@@ -1506,12 +1506,18 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef}>
+                                <div className="suggestion-header">
+                                    <span className="suggestion-tag">Tag No.</span>
+                                    <span className="suggestion-name">Description</span>
+                                    <span className="suggestion-price">Price</span>
+                                    <span className="suggestion-stock">Stock</span>
+                                </div>
                                 {suggestions.map((p, i) => (
                                 <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
+                                    <span className="suggestion-tag">{p.barcode || p.id}</span>
                                     <span className="suggestion-name">{p.name}</span>
-                                    {/* FIX: Corrected typo from p.c.b2cPrice to p.b2cPrice */}
                                     <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
-                                    <span className="suggestion-stock">Stock: {p.stock}</span>
+                                    <span className="suggestion-stock">{p.stock}</span>
                                 </div>
                                 ))}
                                 {showAddNewSuggestion && (
@@ -2230,7 +2236,7 @@ const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ custome
             <div className="customer-management-header">
                  <h2 className="page-title">Customer Management</h2>
                  <div className="page-header-actions">
-                     <button className="add-customer-btn" onClick={() => setIsAddModalOpen(true)}>Add New Customer</button>
+                     <button className="action-button-primary add-new-customer-btn" onClick={() => setIsAddModalOpen(true)}>Add New Customer</button>
                  </div>
             </div>
             
@@ -2265,8 +2271,8 @@ const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ custome
                                     <p>{selectedCustomer.mobile}</p>
                                 </div>
                                 <div className="customer-actions">
-                                    <button className="edit-btn" onClick={handleStartEdit}>Edit</button>
-                                    <button className="delete-btn" onClick={handleStartDelete}>Delete</button>
+                                    <button className="action-button-warning edit-btn" onClick={handleStartEdit}>Edit</button>
+                                    <button className="action-button-danger delete-btn" onClick={handleStartDelete}>Delete</button>
                                 </div>
                             </div>
                             
@@ -2283,7 +2289,7 @@ const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ custome
                                                 <ul className="purchase-card-items">
                                                     {sale.saleItems.filter(item => !item.isReturn).map((item, index) => (
                                                         <li key={`${sale.id}-item-${index}`}>
-                                                           • {item.name} (Qty: {formatQuantity(item.quantity)}, Price: {formatCurrency(item.price)})
+                                                           {item.name} (Qty: {formatQuantity(item.quantity)}, Price: {formatCurrency(item.price)})
                                                         </li>
                                                     ))}
                                                 </ul>
