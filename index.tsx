@@ -275,6 +275,16 @@ const MOCK_SALES: SaleData[] = [
     { id: 'sale-2', shopId: 2, date: new Date(), customerName: 'Bob', customerMobile: '222', saleItems: [{ productId: 3, name: 'Bread', nameTamil: 'பிரெட்', quantity: 2, price: 2.5, isReturn: false }, { productId: 4, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', quantity: 1, price: 10, isReturn: false }], grossTotal: 15, returnTotal: 0, subtotal: 15, discount: 0, taxAmount: 0.75, taxPercent: 5, grandTotal: 15.75, languageMode: 'English', previousBalance: 10, amountPaid: 25.75, totalBalanceDue: 0 },
 ];
 
+const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
+    { id: 1, shopId: 1, supplierName: 'Wholesale Supplies Inc.', orderDate: new Date(new Date().setDate(new Date().getDate() - 5)), items: [{ productId: 5, name: 'BLACK FRY PAN PLASTIC HANDLE', quantity: 20, price: 150 }], totalAmount: 3000, status: 'Fulfilled' },
+    { id: 2, shopId: 1, supplierName: 'Kitchen Goods Co.', orderDate: new Date(), items: [{ productId: 99, name: 'Kambi Aduppu 8mm', quantity: 10, price: 130 }], totalAmount: 1300, status: 'Pending' },
+];
+
+const MOCK_SALES_ORDERS: SalesOrder[] = [
+    { id: 1, shopId: 1, customerMobile: '9894030029', customerName: 'abu bhai', orderDate: new Date(new Date().setDate(new Date().getDate() - 2)), items: [{ productId: 1, name: 'Apple', quantity: 10, price: 0.50 }], totalAmount: 5.00, status: 'Pending' },
+    { id: 2, shopId: 2, customerMobile: '+917601984346', customerName: 'Christy', orderDate: new Date(new Date().setDate(new Date().getDate() - 10)), items: [{ productId: 3, name: 'Bread', quantity: 5, price: 2.50 }], totalAmount: 12.50, status: 'Fulfilled' },
+];
+
 // --- IndexedDB Manager ---
 class IndexedDBManager {
     private db: IDBDatabase | null = null;
@@ -1068,19 +1078,55 @@ const ConfirmTransactionModal: React.FC<ConfirmTransactionModalProps> = ({ isOpe
 type OrderDetailsModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    // ... add order type props later
+    order: SalesOrder | PurchaseOrder | null;
 };
-const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ isOpen, onClose }) => {
-    if (!isOpen) return null;
+const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ isOpen, onClose, order }) => {
+    if (!isOpen || !order) return null;
+
+    const isSalesOrder = 'customerName' in order;
+    const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
                 <div className="modal-header">
-                    <h3>Order Details</h3>
+                    <h3>{isSalesOrder ? 'Sales' : 'Purchase'} Order #{order.id}</h3>
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <div className="modal-body">
-                    <p>Order details will be displayed here.</p>
+                    <div className="order-details-summary">
+                        <div><strong>Date:</strong> {new Date(order.orderDate).toLocaleDateString()}</div>
+                        <div><strong>{isSalesOrder ? 'Customer:' : 'Supplier:'}</strong> {isSalesOrder ? order.customerName : order.supplierName}</div>
+                        <div><strong>Status:</strong> <span className={`status-badge ${order.status.toLowerCase()}`}>{order.status}</span></div>
+                        <div><strong>Total Items:</strong> {totalItems}</div>
+                    </div>
+                    <h4>Items</h4>
+                    <div className="inventory-list-container" style={{ maxHeight: '40vh' }}>
+                        <table className="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Quantity</th>
+                                    <th>Price</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {order.items.map((item, index) => (
+                                    <tr key={index}>
+                                        <td data-label="Product Name">{item.name}</td>
+                                        <td data-label="Quantity">{formatQuantity(item.quantity)}</td>
+                                        <td data-label="Price">{formatCurrency(item.price)}</td>
+                                        <td data-label="Subtotal">{formatCurrency(item.quantity * item.price)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="order-details-total">
+                        <strong>Grand Total:</strong>
+                        <span>{formatCurrency(order.totalAmount)}</span>
+                    </div>
                 </div>
                 <div className="modal-footer">
                     <button className="action-button-secondary" onClick={onClose}>Close</button>
@@ -1507,14 +1553,12 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef}>
                                 <div className="suggestion-header">
-                                    <span className="suggestion-tag">Tag No.</span>
                                     <span className="suggestion-name">Description</span>
                                     <span className="suggestion-price">Price</span>
                                     <span className="suggestion-stock">Stock</span>
                                 </div>
                                 {suggestions.map((p, i) => (
                                 <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
-                                    <span className="suggestion-tag">{p.barcode || p.id}</span>
                                     <span className="suggestion-name">{p.name}</span>
                                     <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
                                     <span className="suggestion-stock">{p.stock}</span>
@@ -2681,6 +2725,95 @@ const DashboardAndReportsPage: React.FC<DashboardAndReportsPageProps> = ({ sales
     );
 };
 
+// --- ORDER MANAGEMENT PAGE ---
+type OrderManagementPageProps = {
+    purchaseOrders: PurchaseOrder[];
+    salesOrders: SalesOrder[];
+    onUpdateOrderStatus: (orderType: 'purchase' | 'sales', orderId: number, newStatus: OrderStatus) => Promise<void>;
+};
+const OrderManagementPage: React.FC<OrderManagementPageProps> = ({ purchaseOrders, salesOrders, onUpdateOrderStatus }) => {
+    const [activeTab, setActiveTab] = useState<'sales' | 'purchase'>('sales');
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | PurchaseOrder | null>(null);
+
+    const handleViewDetails = (order: SalesOrder | PurchaseOrder) => {
+        setSelectedOrder(order);
+        setIsDetailsModalOpen(true);
+    };
+
+    const handleStatusChange = (order: SalesOrder | PurchaseOrder, newStatus: OrderStatus) => {
+        const orderType = 'customerName' in order ? 'sales' : 'purchase';
+        onUpdateOrderStatus(orderType, order.id, newStatus);
+    };
+
+    const ordersToShow = activeTab === 'sales' ? salesOrders : purchaseOrders;
+    
+    return (
+        <div className="page-container order-management-page">
+            <OrderDetailsModal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} order={selectedOrder} />
+            <div className="page-header">
+                <h2 className="page-title">Order Management</h2>
+                <div className="page-header-actions">
+                    <button className="action-button-primary" onClick={() => alert("Add New Order functionality coming soon!")}>
+                        + Add New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
+                    </button>
+                </div>
+            </div>
+
+            <div className="order-tabs">
+                <button className={`tab-button ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>Sales Orders ({salesOrders.length})</button>
+                <button className={`tab-button ${activeTab === 'purchase' ? 'active' : ''}`} onClick={() => setActiveTab('purchase')}>Purchase Orders ({purchaseOrders.length})</button>
+            </div>
+
+            <div className="inventory-list-container">
+                <table className="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Date</th>
+                            <th>{activeTab === 'sales' ? 'Customer' : 'Supplier'}</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {ordersToShow.length === 0 ? (
+                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No {activeTab} orders found.</td></tr>
+                        ) : (
+                            ordersToShow.map(order => (
+                                <tr key={order.id}>
+                                    <td data-label="Order ID">#{order.id}</td>
+                                    <td data-label="Date">{new Date(order.orderDate).toLocaleDateString()}</td>
+                                    <td data-label={activeTab === 'sales' ? 'Customer' : 'Supplier'}>
+                                        {'customerName' in order ? order.customerName : order.supplierName}
+                                    </td>
+                                    <td data-label="Total Amount">{formatCurrency(order.totalAmount)}</td>
+                                    <td data-label="Status"><span className={`status-badge ${order.status.toLowerCase()}`}>{order.status}</span></td>
+                                    <td data-label="Actions">
+                                        <div className="table-action-buttons">
+                                            <button className="action-button-secondary" onClick={() => handleViewDetails(order)}>Details</button>
+                                            <select 
+                                                className="select-field status-changer" 
+                                                value={order.status} 
+                                                onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
+                                            >
+                                                <option value="Pending">Pending</option>
+                                                <option value="Fulfilled">Fulfilled</option>
+                                                <option value="Cancelled">Cancelled</option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 // --- APP COMPONENT (MAIN) ---
 const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
@@ -2697,6 +2830,8 @@ const App: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [notes, setNotes] = useState<Note[]>(initialNotes);
+    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
     
     // UI State
     const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
@@ -2822,6 +2957,20 @@ const App: React.FC = () => {
         };
         setExpenses(prev => [newExpense, ...prev]);
         await dbManager.put('expenses', newExpense);
+    };
+
+    const handleUpdateOrderStatus = async (orderType: 'purchase' | 'sales', orderId: number, newStatus: OrderStatus) => {
+        if (orderType === 'purchase') {
+            const updatedOrders = purchaseOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+            setPurchaseOrders(updatedOrders);
+            const orderToUpdate = updatedOrders.find(o => o.id === orderId);
+            if(orderToUpdate) await dbManager.put('purchaseOrders', orderToUpdate);
+        } else {
+            const updatedOrders = salesOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+            setSalesOrders(updatedOrders);
+            const orderToUpdate = updatedOrders.find(o => o.id === orderId);
+            if(orderToUpdate) await dbManager.put('salesOrders', orderToUpdate);
+        }
     };
 
     const handleNavigate = (page: string) => {
@@ -3088,6 +3237,12 @@ const App: React.FC = () => {
                  setShops(storedShops);
             }
 
+            const storedPurchaseOrders = await dbManager.getAll<PurchaseOrder>('purchaseOrders');
+            setPurchaseOrders(storedPurchaseOrders.length > 0 ? storedPurchaseOrders.map(o => ({ ...o, orderDate: new Date(o.orderDate)})) : MOCK_PURCHASE_ORDERS);
+
+            const storedSalesOrders = await dbManager.getAll<SalesOrder>('salesOrders');
+            setSalesOrders(storedSalesOrders.length > 0 ? storedSalesOrders.map(o => ({ ...o, orderDate: new Date(o.orderDate)})) : MOCK_SALES_ORDERS);
+
             setExpenses(await dbManager.getAll<Expense>('expenses'));
 
             const savedUser = sessionStorage.getItem('currentUser');
@@ -3207,6 +3362,12 @@ const App: React.FC = () => {
                             onDeleteCustomer={handleDeleteCustomer}
                             salesHistory={sales} 
                             onViewInvoice={handleViewInvoiceFromHistory} 
+                        />;
+            case 'Order Management':
+                 return <OrderManagementPage
+                            purchaseOrders={purchaseOrders}
+                            salesOrders={salesOrders}
+                            onUpdateOrderStatus={handleUpdateOrderStatus}
                         />;
             case 'Expenses':
                  return <ExpensesPage expenses={expenses} onAddExpense={handleAddExpense} shops={shops} />;
