@@ -1998,10 +1998,41 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
                                 {regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatNumberForInvoice(item.quantity * item.price)}</td></tr>))}
                             </tbody>
                         </table>
+
+                        {returnedItems.length > 0 && (
+                            <>
+                                <h3 style={{ marginTop: '2em', marginBottom: '1em', fontSize: '1.2em', fontWeight: 'bold' }}>
+                                    {languageMode === 'English' ? 'Return Items' : 'திருப்பி அனுப்பியவை'}
+                                </h3>
+                                <table className="invoice-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th>
+                                            <th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th>
+                                            <th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th>
+                                            <th>{languageMode === 'English' ? 'Price' : 'விலை'}</th>
+                                            <th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {returnedItems.map((item, index) => (
+                                            <tr key={`return-${index}`}>
+                                                <td>{index + 1}</td>
+                                                <td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td>
+                                                <td>{formatQuantityForInvoice(item.quantity)}</td>
+                                                <td>{formatPriceForInvoice(item.price)}</td>
+                                                <td>-{formatNumberForInvoice(item.quantity * item.price)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </>
+                        )}
                         
                         <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}>
                             <div className="invoice-totals">
                                 {finalGrossTotal > 0 && <div className="total-row"><span>Gross Total</span><span>{formatNumberForInvoice(finalGrossTotal)}</span></div>}
+                                {finalReturnTotal > 0 && <div className="total-row"><span>Returns</span><span>-{formatNumberForInvoice(finalReturnTotal)}</span></div>}
                                 <div className="invoice-dashed-line"></div>
                                 <div className="total-row grand-total">
                                     <span>Grand Total</span>
