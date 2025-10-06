@@ -224,8 +224,14 @@ interface SalesOrder {
 
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
 type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
-type InvoiceTheme = 'professional' | 'modern' | 'classic' | 'minimalist' | 'elegant' | 'vibrant' | 'eco' | 'vintage' | 'midnight' | 'blueprint';
 type ViewMode = 'desktop' | 'mobile';
+
+interface InvoiceAppearance {
+    fontStyle: InvoiceFontStyle;
+    margins: { top: number; right: number; bottom: number; left: number };
+    paperSize: '4inch' | 'a4' | 'letter';
+    fontSize: 'small' | 'medium' | 'large';
+}
 
 
 // --- MOCK DATA FOR LOCAL FEATURES (NOTES) ---
@@ -1900,53 +1906,65 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
 };
 
 
-// --- INVOICE PAGE COMPONENT ---
+// --- INVOICE PAGE COMPONENT (REBUILT) ---
 type InvoicePageProps = {
     saleData: SaleData | null;
     onNavigate: (page: string) => void;
-    settings: AppSettings;
-    onSettingsChange: (settings: AppSettings) => void;
     isFinalized: boolean;
     onCompleteSale: () => Promise<void>;
-    margins: { top: number; right: number; bottom: number; left: number };
-    onMarginsChange: (margins: { top: number; right: number; bottom: number; left: number }) => void;
-    offsets: { header: number; footer: number };
-    onOffsetsChange: (offsets: { header: number; footer: number }) => void;
-    fontStyle: InvoiceFontStyle;
-    onFontStyleChange: (style: InvoiceFontStyle) => void;
-    theme: InvoiceTheme;
-    onThemeChange: (theme: InvoiceTheme) => void;
+    appearance: InvoiceAppearance;
+    onAppearanceChange: (updater: (prev: InvoiceAppearance) => InvoiceAppearance) => void;
 };
-const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, settings, onSettingsChange, isFinalized, onCompleteSale, margins, onMarginsChange, offsets, onOffsetsChange, fontStyle, onFontStyleChange, theme, onThemeChange }) => {
-    const [paperSize, setPaperSize] = useState('4inch');
-    const [fontSize, setFontSize] = useState('medium');
+
+const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinalized, onCompleteSale, appearance, onAppearanceChange }) => {
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
-    const invoiceRef = useRef<HTMLDivElement>(null);
-    const [invoiceTitle, setInvoiceTitle] = useState('Invoice');
-    const [isTitleEditing, setIsTitleEditing] = useState(false);
-    const [isFooterEditing, setIsFooterEditing] = useState(false);
     const [isCompleting, setIsCompleting] = useState(false);
-    const titleInputRef = useRef<HTMLInputElement>(null);
-    const footerInputRef = useRef<HTMLInputElement>(null);
-    const { invoiceFooter } = settings;
-    useEffect(() => { if (isTitleEditing && titleInputRef.current) titleInputRef.current.focus(); }, [isTitleEditing]);
-    useEffect(() => { if (isFooterEditing && footerInputRef.current) footerInputRef.current.focus(); }, [isFooterEditing]);
-    useEffect(() => { if (saleData?.customerMobile) setWhatsAppNumber(saleData.customerMobile); }, [saleData]);
-    if (!saleData) return (<div className="page-container"><h2 className="page-title">Invoice</h2><p>No sale data available.</p><button onClick={() => onNavigate('New Sale')} className="action-button-primary">Back to Sale</button></div>);
-    const { customerName, customerMobile, saleItems, subtotal, taxAmount, taxPercent, languageMode, grandTotal, previousBalance, totalBalanceDue, amountPaid, grossTotal, returnTotal, returnReason, paymentDetailsEntered } = saleData;
-    const regularItems = saleItems.filter(item => !item.isReturn);
-    const returnedItems = saleItems.filter(item => item.isReturn);
-    const finalGrossTotal = grossTotal ?? regularItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
-    const finalReturnTotal = returnTotal ?? returnedItems.reduce((acc, item) => acc + item.quantity * item.price, 0);
+    const invoiceRef = useRef<HTMLDivElement>(null);
+    const { fontStyle, margins, paperSize, fontSize } = appearance;
+    const invoiceFooter = "Thank you for your business!";
+
+    useEffect(() => {
+        if (saleData?.customerMobile) {
+            setWhatsAppNumber(saleData.customerMobile);
+        }
+    }, [saleData]);
+
     const handlePrint = () => window.print();
-    const handleMarginChange = (side: keyof typeof margins, value: string) => onMarginsChange({ ...margins, [side]: parseInt(value, 10) || 0 });
-    const handleOffsetChange = (type: keyof typeof offsets, value: string) => onOffsetsChange({ ...offsets, [type]: parseInt(value, 10) || 0 });
+
     const handleSaveAsPdf = async () => {
-        const input = invoiceRef.current; if (!input) return;
-        const canvas = await html2canvas(input, { scale: 2 }); const imgData = canvas.toDataURL('image/png');
+        const input = invoiceRef.current;
+        if (!input) return;
+        const canvas = await html2canvas(input, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width, canvas.height] });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height); pdf.save(`invoice-${saleData.id}.pdf`);
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`invoice-${saleData?.id || Date.now()}.pdf`);
     };
+
+    const handleSendWhatsApp = () => {
+        if (!saleData || !whatsAppNumber) {
+            alert('Please enter a mobile number.');
+            return;
+        }
+        const { customerName, date, saleItems, subtotal, taxPercent, taxAmount, grandTotal, previousBalance, totalBalanceDue } = saleData;
+        const regularItems = saleItems.filter(item => !item.isReturn);
+        const returnedItems = saleItems.filter(item => item.isReturn);
+
+        let message = `*Invoice from BillEase POS*\n\nCustomer: ${customerName || 'N/A'}\nDate: ${date.toLocaleString()}\n------------------------------------\n`;
+        regularItems.forEach(item => { message += `${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = ${formatCurrency(item.quantity * item.price)}\n`; });
+        if (returnedItems.length > 0) {
+            message += `\n*Returned Items:*\n`;
+            returnedItems.forEach(item => { message += `${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = -${formatCurrency(item.quantity * item.price)}\n`; });
+        }
+        message += `------------------------------------\n*Summary:*\nNet Total: ${formatCurrency(subtotal)}\n`;
+        if (taxPercent > 0) message += `Tax (${taxPercent}%): ${formatNumberForInvoice(taxAmount)}\n`;
+        message += `Grand Total: ${formatCurrency(grandTotal)}\n`;
+        if (previousBalance !== 0) message += `Previous Balance: ${formatCurrency(previousBalance)}\n`;
+        message += `*Total Balance Due: ${formatCurrency(totalBalanceDue)}*\n\n${invoiceFooter}`;
+        const url = `https://api.whatsapp.com/send?phone=${whatsAppNumber.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
     const handleCompleteClick = async () => {
         if (isFinalized) return;
         setIsCompleting(true);
@@ -1956,168 +1974,124 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, setting
             setIsCompleting(false);
         }
     };
-    const handleSendWhatsApp = () => {
-        if (!whatsAppNumber) { alert('Please enter a mobile number.'); return; }
-        let message = `*Invoice from BillEase POS*\n\nCustomer: ${customerName || 'N/A'}\nDate: ${saleData.date.toLocaleString()}\n\n*Items:*\n`;
-        regularItems.forEach(item => { message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = ${formatCurrency(item.quantity * item.price)}\n`; });
-        if (returnedItems.length > 0) {
-            message += `\n*Returned Items:*\n`;
-            returnedItems.forEach(item => { message += `- ${item.name} (${formatQuantityForInvoice(item.quantity)} x ${formatPriceForInvoice(item.price)}) = -${formatCurrency(item.quantity * item.price)}\n`; });
-        }
-        message += `\n*Summary:*\nNet Total: ${formatCurrency(subtotal)}\n`;
-        if (taxPercent > 0) message += `Tax (${taxPercent}%): ${formatNumberForInvoice(taxAmount)}\n`;
-        message += `Grand Total: ${formatCurrency(grandTotal)}\n`;
-        if (previousBalance !== 0) message += `Previous Balance: ${formatCurrency(previousBalance)}\n`;
-        message += `*Total Balance Due: ${formatCurrency(totalBalanceDue)}*\n\n${invoiceFooter}`;
-        const url = `https://api.whatsapp.com/send?phone=${whatsAppNumber.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
-    };
-    return (
-        <div className="page-container invoice-page-container">
-            <div className="invoice-preview-pane">
-                 <div className={`invoice-paper theme-${theme} size-${paperSize} font-${fontSize} font-style-${fontStyle}`} ref={invoiceRef} style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}>
-                    <div className="printable-area">
-                        <header className="invoice-header" style={{ transform: `translateY(${offsets.header}px)` }}>
-                           {isTitleEditing ? <input ref={titleInputRef} type="text" value={invoiceTitle} onChange={e => setInvoiceTitle(e.target.value)} onBlur={() => setIsTitleEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }} className="invoice-title-input" /> : <h2 onDoubleClick={() => setIsTitleEditing(true)} title="Double-click to edit">{invoiceTitle}</h2>}
-                        </header>
-                         <section className="invoice-customer">
-                            <p><strong>Date:</strong> {saleData.date.toLocaleString()}</p>
-                            {(customerName || customerMobile) && (<><p><strong>Customer:</strong> {customerName || 'N/A'}</p><p><strong>Mobile:</strong> {customerMobile || 'N/A'}</p></>)}
-                        </section>
-                        <table className="invoice-table">
-                            <thead>
-                                <tr>
-                                    <th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th>
-                                    <th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th>
-                                    <th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th>
-                                    <th>{languageMode === 'English' ? 'Price' : 'விலை'}</th>
-                                    <th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {regularItems.map((item, index) => (<tr key={index}><td>{index + 1}</td><td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td><td>{formatQuantityForInvoice(item.quantity)}</td><td>{formatPriceForInvoice(item.price)}</td><td>{formatNumberForInvoice(item.quantity * item.price)}</td></tr>))}
-                            </tbody>
-                        </table>
 
-                        {returnedItems.length > 0 && (
-                            <>
-                                <h3 style={{ marginTop: '2em', marginBottom: '1em', fontSize: '1.2em', fontWeight: 'bold' }}>
-                                    {languageMode === 'English' ? 'Return Items' : 'திருப்பி அனுப்பியவை'}
-                                </h3>
-                                <table className="invoice-table">
-                                    <thead>
-                                        <tr>
-                                            <th>{languageMode === 'English' ? 'S.No' : 'எண்'}</th>
-                                            <th>{languageMode === 'English' ? 'Item' : 'பொருள்'}</th>
-                                            <th>{languageMode === 'English' ? 'Qty' : 'அளவு'}</th>
-                                            <th>{languageMode === 'English' ? 'Price' : 'விலை'}</th>
-                                            <th>{languageMode === 'English' ? 'Total' : 'மொத்தம்'}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {returnedItems.map((item, index) => (
-                                            <tr key={`return-${index}`}>
-                                                <td>{index + 1}</td>
-                                                <td>{languageMode === 'Tamil' && item.nameTamil ? item.nameTamil : item.name}</td>
-                                                <td>{formatQuantityForInvoice(item.quantity)}</td>
-                                                <td>{formatPriceForInvoice(item.price)}</td>
-                                                <td>-{formatNumberForInvoice(item.quantity * item.price)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </>
-                        )}
-                        
-                        <footer className="invoice-footer" style={{ transform: `translateY(${offsets.footer}px)` }}>
-                            <div className="invoice-totals">
-                                {finalGrossTotal > 0 && <div className="total-row"><span>Gross Total</span><span>{formatNumberForInvoice(finalGrossTotal)}</span></div>}
-                                {finalReturnTotal > 0 && <div className="total-row"><span>Returns</span><span>-{formatNumberForInvoice(finalReturnTotal)}</span></div>}
-                                <div className="invoice-dashed-line"></div>
-                                <div className="total-row grand-total">
-                                    <span>Grand Total</span>
-                                    <span>{formatCurrency(grandTotal)}</span>
-                                </div>
-                            </div>
-                           {invoiceFooter && (isFooterEditing ? <input ref={footerInputRef} type="text" value={invoiceFooter} onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })} onBlur={() => setIsFooterEditing(false)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setIsFooterEditing(false); }} className="invoice-footer-input" /> : <p className="invoice-custom-footer" onDoubleClick={() => setIsFooterEditing(true)} title="Double-click to edit">{invoiceFooter}</p>)}
-                        </footer>
+    if (!saleData) {
+        return (
+            <div className="page-container">
+                <div className="page-header">
+                    <h2 className="page-title">Invoice Not Found</h2>
+                </div>
+                <p>No sale data is available to display. Please start a new sale.</p>
+                <button onClick={() => onNavigate('New Sale')} className="action-button-primary" style={{ marginTop: 'var(--padding-md)', alignSelf: 'flex-start' }}>
+                    ← Start New Sale
+                </button>
+            </div>
+        );
+    }
+    
+    const { grandTotal } = saleData;
+
+    return (
+        <div className="invoice-page-layout">
+            <div className="invoice-preview-container">
+                <div 
+                    className={`invoice-paper size-${paperSize} font-${fontSize} font-style-${fontStyle}`} 
+                    ref={invoiceRef} 
+                    style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}
+                >
+                    <div className="invoice-header">
+                        <h2>Invoice</h2>
+                    </div>
+                    <div className="invoice-dashed-line"></div>
+                    <div className="invoice-details">
+                        <p><strong>Date:</strong> {saleData.date.toLocaleString()}</p>
+                    </div>
+                    <div className="invoice-dashed-line"></div>
+                    <table className="invoice-table-simple">
+                        <thead>
+                            <tr>
+                                <th>S.No</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {saleData.saleItems.filter(i => !i.isReturn).map((item, index) => (
+                                <tr key={`sale-${index}`}>
+                                    <td>{index + 1}</td>
+                                    <td>{item.name}</td>
+                                    <td>{formatQuantityForInvoice(item.quantity)}</td>
+                                    <td>{formatPriceForInvoice(item.price)}</td>
+                                    <td>{formatNumberForInvoice(item.quantity * item.price)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <div className="invoice-dashed-line"></div>
+                     <div className="invoice-total-summary">
+                        <div className="total-row">
+                            <span>Grand Total</span>
+                            <span>{formatCurrency(grandTotal)}</span>
+                        </div>
+                    </div>
+                    <div className="invoice-dashed-line"></div>
+                    <div className="invoice-footer-message">
+                        <p>{invoiceFooter}</p>
                     </div>
                 </div>
             </div>
-            <aside className="invoice-settings-pane">
-                <div className="invoice-actions-card">
-                    <h3>Actions</h3>
-                    <div className="invoice-main-actions">
-                         <div className="action-group">
-                            <button onClick={handlePrint} className="action-button-primary">Print</button>
-                            <button onClick={handleSaveAsPdf} className="action-button-primary">Save as PDF</button>
-                        </div>
-                        <div className="whatsapp-group">
-                            <input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} />
-                            <button onClick={handleSendWhatsApp} className="action-button-primary">Send</button>
+
+            <div className="invoice-controls-panel">
+                <div className="controls-row">
+                    <button onClick={handlePrint} className="action-button-teal">Print</button>
+                    <button onClick={handleSaveAsPdf} className="action-button-teal">Save as PDF</button>
+                    <div className="whatsapp-group">
+                        <input type="tel" className="input-field" placeholder="WhatsApp Number" value={whatsAppNumber} onChange={e => setWhatsAppNumber(e.target.value)} />
+                        <button onClick={handleSendWhatsApp} className="action-button-teal">Send</button>
+                    </div>
+                </div>
+                <div className="controls-row">
+                    <div className="form-group">
+                        <label htmlFor="paper-size">Paper Size</label>
+                        <select id="paper-size" value={paperSize} onChange={(e) => onAppearanceChange(prev => ({ ...prev, paperSize: e.target.value as any }))} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select>
+                    </div>
+                     <div className="form-group">
+                        <label htmlFor="font-size">Font Size</label>
+                        <select id="font-size" value={fontSize} onChange={(e) => onAppearanceChange(prev => ({ ...prev, fontSize: e.target.value as any }))} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="font-style">Font Style</label>
+                        <select id="font-style" value={fontStyle} onChange={(e) => onAppearanceChange(prev => ({ ...prev, fontStyle: e.target.value as InvoiceFontStyle }))} className="select-field">
+                            <option value="monospace">Monospace</option>
+                            <option value="sans-serif">Sans-Serif</option>
+                            <option value="serif">Serif</option>
+                        </select>
+                    </div>
+                     <div className="form-group">
+                        <label>Margins (px)</label>
+                        <div className="margin-controls">
+                            <input type="number" title="Top" placeholder="T" className="input-field" value={margins.top} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, top: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" title="Right" placeholder="R" className="input-field" value={margins.right} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, right: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" placeholder="B" title="Bottom" className="input-field" value={margins.bottom} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, bottom: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" placeholder="L" title="Left" className="input-field" value={margins.left} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, left: parseInt(e.target.value) || 0 } }))} />
                         </div>
                     </div>
                 </div>
-
-                 <div className="invoice-actions-card">
-                    <h3>Appearance</h3>
-                     <div className="invoice-controls-grid">
-                        <div className="form-group">
-                            <label htmlFor="invoice-theme">Theme</label>
-                            <select id="invoice-theme" value={theme} onChange={(e) => onThemeChange(e.target.value as InvoiceTheme)} className="select-field">
-                                <optgroup label="Light Themes">
-                                    <option value="classic">Classic</option>
-                                    <option value="professional">Professional</option>
-                                    <option value="minimalist">Minimalist</option>
-                                    <option value="elegant">Elegant</option>
-                                    <option value="vibrant">Vibrant</option>
-                                    <option value="eco">Eco</option>
-                                    <option value="vintage">Vintage</option>
-                                </optgroup>
-                                <optgroup label="Dark Themes">
-                                    <option value="modern">Modern Dark</option>
-                                    <option value="midnight">Midnight</option>
-                                    <option value="blueprint">Blueprint</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="font-style">Font Style</label>
-                            <select id="font-style" value={fontStyle} onChange={(e) => onFontStyleChange(e.target.value as InvoiceFontStyle)} className="select-field">
-                                <option value="sans-serif">Sans-Serif</option>
-                                <option value="serif">Serif</option>
-                                <option value="monospace">Monospace</option>
-                                <option value="merriweather">Merriweather</option>
-                                <option value="playfair">Playfair Display</option>
-                                <option value="roboto">Roboto</option>
-                            </select>
-                        </div>
-                     </div>
-                </div>
-
-                <div className="invoice-actions-card">
-                    <h3>Layout</h3>
-                     <div className="invoice-controls-grid">
-                        <div className="form-group"><label htmlFor="paper-size">Paper Size</label><select id="paper-size" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select></div>
-                        <div className="form-group"><label htmlFor="font-size">Font Size</label><select id="font-size" value={fontSize} onChange={(e) => setFontSize(e.target.value)} className="select-field"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div>
-                        <div className="margin-controls"><label>Margins (px)</label><input type="number" title="Top" placeholder="Top" className="input-field" value={margins.top} onChange={e => handleMarginChange('top', e.target.value)} /><input type="number" title="Right" placeholder="Right" className="input-field" value={margins.right} onChange={e => handleMarginChange('right', e.target.value)} /><input type="number" placeholder="Bottom" title="Bottom" className="input-field" value={margins.bottom} onChange={e => handleMarginChange('bottom', e.target.value)} /><input type="number" placeholder="Left" title="Left" className="input-field" value={margins.left} onChange={e => handleMarginChange('left', e.target.value)} /></div>
-                        <div className="offset-controls"><label>Offsets (px)</label><input type="number" title="Header Y" placeholder="Header Y" className="input-field" value={offsets.header} onChange={e => handleOffsetChange('header', e.target.value)} /><input type="number" title="Footer Y" placeholder="Footer Y" className="input-field" value={offsets.footer} onChange={e => handleOffsetChange('footer', e.target.value)} /></div>
-                    </div>
-                </div>
-
-                <div className="finalize-actions-group">
+                <div className="controls-row final-actions">
+                     <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">
+                        ← {isFinalized ? 'New Sale' : 'Back to Edit Sale'}
+                    </button>
                     {isFinalized ? (
-                        <button className="finalize-button" disabled>Sale Recorded ✓</button>
+                        <div className="sale-recorded-badge">✓ Sale Recorded</div>
                     ) : (
-                        <button className="finalize-button" onClick={handleCompleteClick} disabled={isCompleting}>
+                        <button className="action-button-green" onClick={handleCompleteClick} disabled={isCompleting}>
                             {isCompleting ? 'Completing...' : 'Complete Sale'}
                         </button>
                     )}
-                    <button onClick={() => onNavigate('New Sale')} className="action-button-secondary">
-                        {isFinalized ? 'New Sale' : 'Back to Edit Sale'}
-                    </button>
                 </div>
-            </aside>
+            </div>
         </div>
     );
 };
@@ -2886,10 +2860,12 @@ const App: React.FC = () => {
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
     // Invoice Customization State
-    const [invoiceMargins, setInvoiceMargins] = useState({ top: 20, right: 20, bottom: 20, left: 20 });
-    const [invoiceOffsets, setInvoiceOffsets] = useState({ header: 0, footer: 0 });
-    const [invoiceFontStyle, setInvoiceFontStyle] = useState<InvoiceFontStyle>('sans-serif');
-    const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>('classic');
+    const [invoiceAppearance, setInvoiceAppearance] = useState<InvoiceAppearance>({
+        fontStyle: 'monospace',
+        margins: { top: 20, right: 20, bottom: 20, left: 20 },
+        paperSize: '4inch',
+        fontSize: 'medium',
+    });
 
     // Filtered data for current user/shop
     const currentShopProducts = useMemo(() => {
@@ -3340,7 +3316,6 @@ const App: React.FC = () => {
     const renderPage = () => {
         switch (currentPage) {
             case 'Dashboard':
-                // Fix: Pass the 'shops' prop to the DashboardAndReportsPage component.
                 return <DashboardAndReportsPage salesHistory={sales} products={products} shops={shops} onViewInvoice={handleViewInvoiceFromHistory} />;
             case 'New Sale':
                 return <NewSalePage
@@ -3364,18 +3339,10 @@ const App: React.FC = () => {
                 return <InvoicePage
                             saleData={currentInvoicePreview}
                             onNavigate={handleNavigate}
-                            settings={appSettings}
-                            onSettingsChange={setAppSettings}
                             isFinalized={isInvoiceFinalized}
                             onCompleteSale={handleCompleteSale}
-                            margins={invoiceMargins}
-                            onMarginsChange={setInvoiceMargins}
-                            offsets={invoiceOffsets}
-                            onOffsetsChange={setInvoiceOffsets}
-                            fontStyle={invoiceFontStyle}
-                            onFontStyleChange={setInvoiceFontStyle}
-                            theme={invoiceTheme}
-                            onThemeChange={setInvoiceTheme}
+                            appearance={invoiceAppearance}
+                            onAppearanceChange={setInvoiceAppearance}
                         />;
             case 'Product Inventory':
                 return <ProductInventoryPage 
