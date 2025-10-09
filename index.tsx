@@ -1180,6 +1180,20 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ isOpen, onClose, 
 };
 
 
+// --- HOOKS ---
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 // --- NEW SALE PAGE COMPONENT ---
 type NewSalePageProps = {
     products: Product[];
@@ -1202,6 +1216,7 @@ type NewSalePageProps = {
 const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHistory, onPreviewInvoice, onViewInvoice, onAddProduct, onUpdateProduct, userRole, sessionData, onSessionUpdate, activeBillIndex, onBillChange, currentShopId, isFitToScreen, setIsFitToScreen }) => {
     const { customerName, customerMobile, priceMode, languageMode, taxPercent, discount, saleItems, amountPaid } = sessionData;
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 250);
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [showAddNewSuggestion, setShowAddNewSuggestion] = useState(false);
     const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -1233,21 +1248,21 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         prevSaleItemsLengthRef.current = saleItems.length;
     }, [saleItems, activeBillIndex]);
     useEffect(() => {
-        if (searchTerm) {
+        if (debouncedSearchTerm) {
             const scoredProducts = products
-                .map(p => ({ product: p, score: calculateMatchScore(searchTerm, p) }))
+                .map(p => ({ product: p, score: calculateMatchScore(debouncedSearchTerm, p) }))
                 .filter(item => item.score > 0)
                 .sort((a, b) => b.score - a.score);
 
             const filtered = scoredProducts.map(item => item.product);
             
-            setSuggestions(filtered);
-            setShowAddNewSuggestion(filtered.length === 0 && !products.some(p => p.barcode === searchTerm));
+            setSuggestions(filtered.slice(0, 15));
+            setShowAddNewSuggestion(filtered.length === 0 && !products.some(p => p.barcode === debouncedSearchTerm));
         } else {
             setSuggestions([]); setShowAddNewSuggestion(false);
         }
         setActiveSuggestion(-1);
-    }, [searchTerm, products]);
+    }, [debouncedSearchTerm, products]);
     useEffect(() => {
         if (isScannerOpen) {
             const scanner = new Html5QrcodeScanner('barcode-reader', { fps: 10, qrbox: { width: 250, height: 250 } }, false);
@@ -1271,7 +1286,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         if (activeSuggestion > -1 && container) {
             const activeItem = container.children[activeSuggestion] as HTMLElement;
             if (activeItem) {
-                activeItem.scrollIntoView({ block: 'nearest' });
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
     }, [activeSuggestion]);
@@ -1596,24 +1611,41 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                             <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
-                            <div className="product-suggestions" ref={suggestionsContainerRef}>
-                                <div className="suggestion-header">
-                                    <span className="suggestion-name">Description</span>
-                                    <span className="suggestion-price">Price</span>
-                                    <span className="suggestion-stock">Stock</span>
-                                </div>
+                            <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
                                 {suggestions.map((p, i) => (
-                                <div key={p.id} className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`} onClick={() => handleProductSelect(p)} onMouseEnter={() => setActiveSuggestion(i)}>
-                                    <span className="suggestion-name">{p.name}</span>
-                                    <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
-                                    <span className="suggestion-stock">{p.stock}</span>
-                                </div>
+                                    <div
+                                        key={p.id}
+                                        className={`suggestion-item ${i === activeSuggestion ? 'active' : ''}`}
+                                        onClick={() => handleProductSelect(p)}
+                                        onMouseEnter={() => setActiveSuggestion(i)}
+                                        role="option"
+                                        aria-selected={i === activeSuggestion}
+                                    >
+                                        <div className="suggestion-main-info">
+                                            <div className="suggestion-name-group">
+                                                <span className="suggestion-name-en">{p.name}</span>
+                                                {p.nameTamil && <span className="suggestion-name-ta">{p.nameTamil}</span>}
+                                            </div>
+                                            {p.category && <span className="suggestion-category-badge">{p.category}</span>}
+                                        </div>
+                                        <div className="suggestion-side-info">
+                                            <span className="suggestion-price">{formatCurrency(priceMode === 'B2B' ? p.b2bPrice : p.b2cPrice)}</span>
+                                            <span className={`suggestion-stock ${p.stock < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}`}>
+                                                {p.stock < LOW_STOCK_THRESHOLD && 
+                                                    <svg className="low-stock-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                                                }
+                                                {p.stock} in stock
+                                            </span>
+                                        </div>
+                                    </div>
                                 ))}
                                 {showAddNewSuggestion && (
                                     <div
                                         className={`suggestion-item add-new-product-suggestion ${suggestions.length === activeSuggestion ? 'active' : ''}`}
                                         onClick={handleDirectAddProduct}
                                         onMouseEnter={() => setActiveSuggestion(suggestions.length)}
+                                        role="option"
+                                        aria-selected={suggestions.length === activeSuggestion}
                                     >
                                         + Add New Product: "{searchTerm}"
                                     </div>
@@ -2497,7 +2529,7 @@ type SettingsPageProps = {
 };
 const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, settings, onSettingsChange, appName, onAppNameChange, onExportData, onImportData, isExporting, isImporting, }) => {
     const themes: {id: Theme, name: string}[] = [{id: 'light', name: 'Light'},{id: 'dark', name: 'Dark'},{id: 'professional-light', name: 'Professional'},{id: 'charcoal', name: 'Charcoal'},{id: 'slate', name: 'Slate'},{id: 'ocean-blue', name: 'Ocean Blue'},{id: 'forest-green', name: 'Forest Green'},{id: 'sunset-orange', name: 'Sunset Orange'},{id: 'monokai', name: 'Monokai'},{id: 'nord', name: 'Nord'}];
-    return (<div className="page-container"><h2 className="page-title">Settings</h2><div className="settings-layout"><div className="settings-card"><h3>General</h3><div className="form-group"><label htmlFor="app-name">POS Name</label><input id="app-name" type="text" className="input-field" value={appName} onChange={e => onAppNameChange(e.target.value)} /></div></div><div className="settings-card"><h3>Interface Theme</h3><div className="toggle-group"><label>Theme</label><div className="toggle-switch theme-selector">{themes.map(t => (<button key={t.id} className={`toggle-button ${theme === t.id ? 'active' : ''}`} onClick={() => onThemeChange(t.id)}>{t.name}</button>))}</div></div></div><div className="settings-card"><h3>Invoice Customization</h3><div className="form-group"><label htmlFor="invoice-footer">Invoice Footer Text</label><textarea id="invoice-footer" className="input-field" rows={3} value={settings.invoiceFooter} onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })}></textarea></div></div><div className="settings-card"><h3>Data Management</h3><p style={{color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 'var(--padding-md)'}}>Export all your application data to a JSON file for backup. You can import this file later to restore your data.<br/><strong>Warning:</strong> Importing will overwrite all current data.</p><div className="data-management-actions"><button onClick={onExportData} className="action-button-secondary" disabled={isExporting || isImporting}>{isExporting ? 'Exporting...' : 'Export All Data'}</button><label htmlFor="import-file-input" className={`action-button-danger ${isImporting || isExporting ? 'disabled' : ''}`} style={{cursor: 'pointer'}}>{isImporting ? 'Importing...' : 'Import Data'}</label><input id="import-file-input" type="file" accept=".json" style={{ display: 'none' }} onChange={onImportData} disabled={isImporting || isExporting} /></div></div></div></div>);
+    return (<div className="page-container"><h2 className="page-title">Settings</h2><div className="settings-layout"><div className="settings-card"><h3>General</h3><div className="form-group"><label htmlFor="app-name">POS Name</label><input id="app-name" type="text" className="input-field" value={appName} onChange={e => onAppNameChange(e.target.value)} /></div></div><div className="settings-card"><h3>Interface Theme</h3><div className="toggle-group"><label>Theme</label><div className="toggle-switch theme-selector">{themes.map(t => (<button key={t.id} className={`toggle-button ${theme === t.id ? 'active' : ''}`} onClick={() => onThemeChange(t.id)}>{t.name}</button>))}</div></div></div><div className="settings-card"><h3>Invoice Customization</h3><div className="form-group"><label htmlFor="invoice-footer">Invoice Footer Text</label><textarea id="invoice-footer" className="input-field" rows={3} value={settings.invoiceFooter} onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })}></textarea></div></div><div className="settings-card"><h3>Data Management</h3><p style={{color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 'var(--padding-md)'}}>Export all your application data to a JSON file for backup. You can import this file later to restore your data.<br/><strong>Warning:</strong> Importing will overwrite all current data.</p><div className="data-management-actions"><button onClick={onExportData} className="action-button-secondary" disabled={isExporting || isImporting}>{isExporting ? 'Exporting...' : 'Export All Data'}</button><label htmlFor="import-file-input" className={`action-button-danger ${isImporting || isExporting ? 'disabled' : ''}`} style={{cursor: 'pointer'}}>{isImporting ? 'Importing...' : 'Import Data'}</label><input id="import-file-input" type="file" accept=".json" style={{ display: 'none' }} onChange={onImportData} disabled={isImporting || isImporting} /></div></div></div></div>);
 };
 
 // --- SHOP MANAGEMENT PAGE ---
