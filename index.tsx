@@ -487,21 +487,58 @@ const formatQuantityForInvoice = (quantity: number) => (quantity || 0).toFixed(1
 const LOW_STOCK_THRESHOLD = 10;
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-function fuzzyMatch(searchTerm: string, textToSearch: string): boolean {
-    if (!searchTerm) return true;
-    if (!textToSearch) return false;
-    
-    const lowerSearchTerm = searchTerm.toLowerCase();
-    const lowerText = textToSearch.toLowerCase();
-    let searchTermIndex = 0;
+function calculateMatchScore(searchTerm: string, product: Product): number {
+    const term = searchTerm.toLowerCase();
+    if (!term) return 0;
 
-    for (let i = 0; i < lowerText.length && searchTermIndex < lowerSearchTerm.length; i++) {
-        if (lowerText[i] === lowerSearchTerm[searchTermIndex]) {
-            searchTermIndex++;
+    const name = product.name.toLowerCase();
+    const nameTamil = product.nameTamil?.toLowerCase() || '';
+    const category = product.category?.toLowerCase() || '';
+    const barcode = product.barcode?.toLowerCase() || '';
+
+    let score = 0;
+
+    // Tier 1: Exact matches
+    if (barcode === term) return 1000;
+    if (name === term) score = Math.max(score, 900);
+    if (nameTamil === term) score = Math.max(score, 890);
+
+    // Tier 2: Starts with
+    if (name.startsWith(term)) score = Math.max(score, 800 + (term.length / name.length * 50));
+    if (nameTamil.startsWith(term)) score = Math.max(score, 790 + (term.length / nameTamil.length * 50));
+
+    // Tier 3: Includes
+    if (name.includes(term)) score = Math.max(score, 700);
+    if (nameTamil.includes(term)) score = Math.max(score, 690);
+    if (category.includes(term)) score = Math.max(score, 600);
+    if (barcode.includes(term)) score = Math.max(score, 500);
+
+    // Tier 4: Fuzzy sequential match
+    const getFuzzyScore = (text: string): number => {
+        let termIndex = 0;
+        let startIndex = -1;
+        let endIndex = -1;
+        
+        for (let i = 0; i < text.length && termIndex < term.length; i++) {
+            if (text[i] === term[termIndex]) {
+                if (startIndex === -1) startIndex = i;
+                endIndex = i;
+                termIndex++;
+            }
         }
-    }
 
-    return searchTermIndex === lowerSearchTerm.length;
+        if (termIndex === term.length) {
+            const matchSpan = endIndex - startIndex + 1;
+            const density = term.length / matchSpan;
+            return density * 100;
+        }
+        return 0;
+    };
+    
+    score = Math.max(score, getFuzzyScore(name));
+    score = Math.max(score, getFuzzyScore(nameTamil));
+
+    return score;
 }
 
 // --- SYNC STATUS INDICATOR ---
@@ -1197,11 +1234,13 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
     }, [saleItems, activeBillIndex]);
     useEffect(() => {
         if (searchTerm) {
-            const lowercasedTerm = searchTerm.toLowerCase();
-            const filtered = products.filter(p => 
-                fuzzyMatch(lowercasedTerm, p.name) || 
-                (p.barcode && p.barcode.includes(lowercasedTerm))
-            );
+            const scoredProducts = products
+                .map(p => ({ product: p, score: calculateMatchScore(searchTerm, p) }))
+                .filter(item => item.score > 0)
+                .sort((a, b) => b.score - a.score);
+
+            const filtered = scoredProducts.map(item => item.product);
+            
             setSuggestions(filtered);
             setShowAddNewSuggestion(filtered.length === 0 && !products.some(p => p.barcode === searchTerm));
         } else {
