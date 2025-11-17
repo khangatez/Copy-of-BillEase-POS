@@ -3496,14 +3496,6 @@ const App: React.FC = () => {
 
     return (
         <>
-            {!apiKey && (
-                <div className="api-key-banner">
-                    <div className="api-key-banner-content">
-                        <span>⚠️</span>
-                        <span>AI features are disabled. Please set the VITE_API_KEY environment variable.</span>
-                    </div>
-                </div>
-            )}
             {!hideHeader && (
                 <AppHeader
                     onNavigate={handleNavigate}
