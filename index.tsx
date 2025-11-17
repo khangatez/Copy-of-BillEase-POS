@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -225,12 +224,14 @@ interface SalesOrder {
 type Theme = 'dark' | 'light' | 'ocean-blue' | 'forest-green' | 'sunset-orange' | 'monokai' | 'nord' | 'professional-light' | 'charcoal' | 'slate';
 type InvoiceFontStyle = 'monospace' | 'sans-serif' | 'serif' | 'roboto' | 'merriweather' | 'playfair' | 'inconsolata' | 'times-new-roman' | 'georgia' | 'lato' | 'source-code-pro';
 type ViewMode = 'desktop' | 'mobile';
+type InvoiceTheme = 'classic' | 'modern' | 'dark' | 'grid-pro' | 'bold-header' | 'letterpress' | 'corporate' | 'playful';
 
 interface InvoiceAppearance {
     fontStyle: InvoiceFontStyle;
     margins: { top: number; right: number; bottom: number; left: number };
     paperSize: '4inch' | 'a4' | 'letter';
     fontSize: 'small' | 'medium' | 'large';
+    theme: InvoiceTheme;
 }
 
 
@@ -1991,7 +1992,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
     const [isCompleting, setIsCompleting] = useState(false);
     const invoiceRef = useRef<HTMLDivElement>(null);
-    const { fontStyle, margins, paperSize, fontSize } = appearance;
+    const { fontStyle, margins, paperSize, fontSize, theme } = appearance;
     const invoiceFooter = "Thank you for your business!";
 
     useEffect(() => {
@@ -2061,12 +2062,23 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
     }
     
     const { grandTotal } = saleData;
+    const invoiceThemes: {id: InvoiceTheme, name: string}[] = [
+        { id: 'classic', name: 'Classic' },
+        { id: 'modern', name: 'Modern' },
+        { id: 'dark', name: 'Dark Mode' },
+        { id: 'grid-pro', name: 'Grid Pro' },
+        { id: 'bold-header', name: 'Bold Header' },
+        { id: 'letterpress', name: 'Letterpress' },
+        { id: 'corporate', name: 'Corporate' },
+        { id: 'playful', name: 'Playful' },
+    ];
+
 
     return (
         <div className="invoice-page-layout">
             <div className="invoice-preview-container">
                 <div 
-                    className={`invoice-paper size-${paperSize} font-${fontSize} font-style-${fontStyle}`} 
+                    className={`invoice-paper theme-${theme} size-${paperSize} font-${fontSize} font-style-${fontStyle}`} 
                     ref={invoiceRef} 
                     style={{ padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px` }}
                 >
@@ -2124,6 +2136,12 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
                     </div>
                 </div>
                 <div className="controls-row">
+                     <div className="form-group">
+                        <label htmlFor="invoice-theme">Theme</label>
+                        <select id="invoice-theme" value={theme} onChange={(e) => onAppearanceChange(prev => ({ ...prev, theme: e.target.value as InvoiceTheme }))} className="select-field">
+                            {invoiceThemes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
                     <div className="form-group">
                         <label htmlFor="paper-size">Paper Size</label>
                         <select id="paper-size" value={paperSize} onChange={(e) => onAppearanceChange(prev => ({ ...prev, paperSize: e.target.value as any }))} className="select-field"><option value="4inch">4 Inch</option><option value="a4">A4</option><option value="letter">Letter</option></select>
@@ -2135,9 +2153,9 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
                     <div className="form-group">
                         <label htmlFor="font-style">Font Style</label>
                         <select id="font-style" value={fontStyle} onChange={(e) => onAppearanceChange(prev => ({ ...prev, fontStyle: e.target.value as InvoiceFontStyle }))} className="select-field">
-                            <option value="monospace">Monospace</option>
                             <option value="sans-serif">Sans-Serif</option>
                             <option value="serif">Serif</option>
+                            <option value="monospace">Monospace</option>
                         </select>
                     </div>
                      <div className="form-group">
@@ -2936,6 +2954,7 @@ const App: React.FC = () => {
         margins: { top: 20, right: 20, bottom: 20, left: 20 },
         paperSize: '4inch',
         fontSize: 'medium',
+        theme: 'classic',
     });
 
     // Filtered data for current user/shop
