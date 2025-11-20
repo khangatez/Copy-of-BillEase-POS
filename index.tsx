@@ -1581,7 +1581,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                     </div>
                     <div className="customer-details-new">
-                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value })} onKeyDown={handleCustomerNameKeydown} /></div>
+                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1) })} onKeyDown={handleCustomerNameKeydown} /></div>
                         <div className="form-group">
                             <label htmlFor="customer-mobile">Customer Mobile</label>
                             <div className="mobile-input-group">
@@ -1609,7 +1609,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         <div className="input-with-icons">
                             <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={handleSearchKeyDown} autoComplete="off" />
                             <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
@@ -2210,7 +2210,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
         finally { setIsAdding(false); }
     };
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => { if (e.key === 'Enter') { e.preventDefault(); nextRef.current?.focus(); } };
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()}><div className="modal-header"><h3>Add New Customer</h3><button onClick={onClose} className="close-button">&times;</button></div><div className="modal-body"><form id={formId} onSubmit={handleSubmit} className="add-product-form"><div className="form-group"><label htmlFor="modal-new-customer-name">Customer Name</label><input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus /></div><div className="form-group"><label htmlFor="modal-new-customer-mobile">Mobile Number</label><input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required /></div></form></div><div className="modal-footer"><button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button><button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Customer'}</button></div></div></div>);
+    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()}><div className="modal-header"><h3>Add New Customer</h3><button onClick={onClose} className="close-button">&times;</button></div><div className="modal-body"><form id={formId} onSubmit={handleSubmit} className="add-product-form"><div className="form-group"><label htmlFor="modal-new-customer-name">Customer Name</label><input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus /></div><div className="form-group"><label htmlFor="modal-new-customer-mobile">Mobile Number</label><input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required /></div></form></div><div className="modal-footer"><button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button><button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Customer'}</button></div></div></div>);
 };
 
 // --- EDIT CUSTOMER MODAL ---
@@ -2261,7 +2261,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ isOpen, onClose, 
                     <form id={formId} onSubmit={handleSubmit} className="add-product-form">
                         <div className="form-group">
                             <label htmlFor="modal-edit-customer-name">Customer Name</label>
-                            <input id="modal-edit-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value)} required autoFocus />
+                            <input id="modal-edit-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))} required autoFocus />
                         </div>
                         <div className="form-group">
                             <label htmlFor="modal-edit-customer-mobile">Mobile Number</label>
