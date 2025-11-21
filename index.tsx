@@ -232,6 +232,7 @@ interface InvoiceAppearance {
     paperSize: '4inch' | 'a4' | 'letter';
     fontSize: 'small' | 'medium' | 'large';
     theme: InvoiceTheme;
+    columnWidths: { sno: number; item: number; qty: number; price: number; total: number };
 }
 
 
@@ -1767,7 +1768,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         <div className="input-with-icons">
                             <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={handleSearchKeyDown} autoComplete="off" />
                             <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
@@ -2156,7 +2157,7 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
     const [whatsAppNumber, setWhatsAppNumber] = useState('');
     const [isCompleting, setIsCompleting] = useState(false);
     const invoiceRef = useRef<HTMLDivElement>(null);
-    const { fontStyle, margins, paperSize, fontSize, theme } = appearance;
+    const { fontStyle, margins, paperSize, fontSize, theme, columnWidths } = appearance;
     const invoiceFooter = "Thank you for your business!";
 
     useEffect(() => {
@@ -2168,67 +2169,50 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
     const handlePrint = () => window.print();
 
     const handleSaveAsPdf = async () => {
-        const element = invoiceRef.current;
-        if (!element) return;
+        const input = invoiceRef.current;
+        if (!input) return;
 
-        // Clone the element to render it off-screen with full height
-        // This prevents scroll-clipping issues common with html2canvas in scrollable containers
-        const clone = element.cloneNode(true) as HTMLElement;
+        // Create a clone of the invoice element
+        const clone = input.cloneNode(true) as HTMLElement;
+
+        // Reset any scroll or constraint styles on the clone to allow full expansion
+        clone.style.position = 'fixed';
+        clone.style.top = '0';
+        clone.style.left = '0';
+        clone.style.zIndex = '-1000'; // Hide it behind everything
+        clone.style.height = 'auto';
+        clone.style.maxHeight = 'none';
+        clone.style.overflow = 'visible';
         
-        // Apply styles to ensure the clone captures fully
-        Object.assign(clone.style, {
-            position: 'absolute',
-            top: '-9999px',
-            left: '-9999px',
-            margin: '0',
-            transform: 'none',
-            overflow: 'visible',
-            // Ensure the clone respects the width of the original paper size class
-            // The classes (size-a4, etc) handle width, but we ensure it's not constrained by parent
-            width: window.getComputedStyle(element).width, 
-            height: 'auto', // Allow height to expand naturally
-            maxHeight: 'none'
-        });
+        // Ensure width matches the original
+        const width = input.offsetWidth;
+        clone.style.width = `${width}px`;
 
+        // Append clone to body so it renders outside any scrollable containers
         document.body.appendChild(clone);
 
         try {
-            // Short delay to ensure rendering (fonts, etc)
+            // Small delay to allow DOM updates/fonts to settle
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            const canvas = await html2canvas(clone, {
-                scale: 2, // Higher scale for crisp text
+            const canvas = await html2canvas(clone, { 
+                scale: 2,
                 useCORS: true,
                 logging: false,
-                backgroundColor: '#ffffff', // Ensure white background
-                windowWidth: clone.scrollWidth + 50, // Add buffer
-                windowHeight: clone.scrollHeight + 50
+                windowHeight: clone.scrollHeight,
+                windowWidth: clone.scrollWidth
             });
-
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-
-            // Convert pixels to points for PDF (1px = 0.75pt) to maintain scale
-            const pdfWidth = imgWidth * 0.75;
-            const pdfHeight = imgHeight * 0.75;
-
-            const pdf = new jsPDF({
-                orientation: pdfWidth > pdfHeight ? 'l' : 'p',
-                unit: 'pt',
-                format: [pdfWidth, pdfHeight]
-            });
-
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Invoice-${saleData?.id || Date.now()}.pdf`);
-
+            
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width, canvas.height] });
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+            pdf.save(`invoice-${saleData?.id || Date.now()}.pdf`);
         } catch (error) {
-            console.error("PDF Generation Failed:", error);
-            alert("Failed to generate PDF. Please try the Print option instead.");
+            console.error("PDF Generation Error:", error);
+            alert("Failed to generate PDF. Please try again.");
         } finally {
-            if (document.body.contains(clone)) {
-                document.body.removeChild(clone);
-            }
+            // Clean up
+            document.body.removeChild(clone);
         }
     };
 
@@ -2310,6 +2294,13 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
                     </div>
                     <div className="invoice-dashed-line"></div>
                     <table className="invoice-table-simple">
+                        <colgroup>
+                            <col style={{ width: `${columnWidths.sno}%` }} />
+                            <col style={{ width: `${columnWidths.item}%` }} />
+                            <col style={{ width: `${columnWidths.qty}%` }} />
+                            <col style={{ width: `${columnWidths.price}%` }} />
+                            <col style={{ width: `${columnWidths.total}%` }} />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>S.No</th>
@@ -2384,6 +2375,16 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
                             <input type="number" title="Right" placeholder="R" className="input-field" value={margins.right} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, right: parseInt(e.target.value) || 0 } }))} />
                             <input type="number" placeholder="B" title="Bottom" className="input-field" value={margins.bottom} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, bottom: parseInt(e.target.value) || 0 } }))} />
                             <input type="number" placeholder="L" title="Left" className="input-field" value={margins.left} onChange={e => onAppearanceChange(prev => ({ ...prev, margins: { ...prev.margins, left: parseInt(e.target.value) || 0 } }))} />
+                        </div>
+                    </div>
+                    <div className="form-group" style={{width: '100%'}}>
+                        <label>Column Widths (%)</label>
+                        <div className="margin-controls" style={{gridTemplateColumns: 'repeat(5, 1fr)'}}>
+                            <input type="number" title="S.No" placeholder="S.No" className="input-field" value={columnWidths.sno} onChange={e => onAppearanceChange(prev => ({ ...prev, columnWidths: { ...prev.columnWidths, sno: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" title="Item" placeholder="Item" className="input-field" value={columnWidths.item} onChange={e => onAppearanceChange(prev => ({ ...prev, columnWidths: { ...prev.columnWidths, item: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" title="Qty" placeholder="Qty" className="input-field" value={columnWidths.qty} onChange={e => onAppearanceChange(prev => ({ ...prev, columnWidths: { ...prev.columnWidths, qty: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" title="Price" placeholder="Price" className="input-field" value={columnWidths.price} onChange={e => onAppearanceChange(prev => ({ ...prev, columnWidths: { ...prev.columnWidths, price: parseInt(e.target.value) || 0 } }))} />
+                            <input type="number" title="Total" placeholder="Tot" className="input-field" value={columnWidths.total} onChange={e => onAppearanceChange(prev => ({ ...prev, columnWidths: { ...prev.columnWidths, total: parseInt(e.target.value) || 0 } }))} />
                         </div>
                     </div>
                 </div>
@@ -2469,6 +2470,7 @@ const App = () => {
       paperSize: 'a4',
       fontSize: 'medium',
       theme: 'modern',
+      columnWidths: { sno: 10, item: 40, qty: 15, price: 15, total: 20 }
   });
   // Session data for multiple bills (0, 1, 2)
   const [billSessions, setBillSessions] = useState<SaleSession[]>([

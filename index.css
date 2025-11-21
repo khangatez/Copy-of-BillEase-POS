@@ -1730,6 +1730,7 @@ body {
     padding: 4px;
     text-align: left;
     border-bottom: 1px solid var(--inv-border-color, #ccc);
+    border: 1px solid var(--inv-border-color, #ccc); /* Added border for grid effect */
 }
 .invoice-table-simple th {
     border-bottom: 1px solid var(--inv-text-color, #000);
