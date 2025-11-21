@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -636,6 +635,150 @@ const AppHeader: React.FC<HeaderProps> = ({ onNavigate, currentUser, onLogout, a
       </div>
     </header>
   );
+};
+
+// --- DASHBOARD PAGE COMPONENT ---
+type DashboardPageProps = {
+    sales: SaleData[];
+    customers: Customer[];
+};
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ sales, customers }) => {
+    const [timeRange, setTimeRange] = useState<'Today' | 'Yesterday' | 'This Week' | 'This Month' | 'Custom Range'>('This Month');
+    const [activeTab, setActiveTab] = useState<'Sales Summary' | 'AI Forecast'>('Sales Summary');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [customStartDate, setCustomStartDate] = useState<string>(todayStr);
+    const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
+
+    const filteredSales = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        return sales.filter(sale => {
+            const saleDate = new Date(sale.date);
+            if (timeRange === 'Today') {
+                return saleDate >= today;
+            } else if (timeRange === 'Yesterday') {
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const endOfYesterday = new Date(today);
+                return saleDate >= yesterday && saleDate < endOfYesterday;
+            } else if (timeRange === 'This Week') {
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday as start
+                return saleDate >= startOfWeek;
+            } else if (timeRange === 'This Month') {
+                 return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
+            } else if (timeRange === 'Custom Range') {
+                if (!customStartDate || !customEndDate) return true;
+                const start = new Date(customStartDate);
+                const end = new Date(customEndDate);
+                end.setHours(23, 59, 59, 999);
+                return saleDate >= start && saleDate <= end;
+            }
+            return true;
+        });
+    }, [sales, timeRange, customStartDate, customEndDate]);
+
+    const stats = useMemo(() => {
+        const totalRevenue = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
+        const itemsSold = filteredSales.reduce((acc, sale) => acc + sale.saleItems.reduce((sum, item) => sum + item.quantity, 0), 0);
+        const transactions = filteredSales.length;
+        
+        // Outstanding calculation (simplified: sum of balances from all customers, or sales with due)
+        // Using customers.balance as "Outstanding"
+        // Note: The reference image implies "Outstanding" might be related to the time period, 
+        // but typically outstanding is a global state of debt. 
+        // We will sum all customer balances for the "Outstanding" card to show total debt.
+        const totalOutstanding = customers.reduce((acc, c) => acc + c.balance, 0);
+
+        return { totalRevenue, itemsSold, transactions, totalOutstanding };
+    }, [filteredSales, customers]);
+
+    return (
+        <div className="page-container dashboard-new-layout">
+             <div className="dashboard-header-row">
+                <h2 className="dashboard-title">{timeRange === 'Custom Range' ? 'Custom Sales Report' : `${timeRange}'s Sales Report`}</h2>
+                <div className="date-filter-container">
+                     <select 
+                        className="date-filter-select" 
+                        value={timeRange} 
+                        onChange={(e) => setTimeRange(e.target.value as any)}
+                    >
+                        <option value="Today">Today</option>
+                        <option value="Yesterday">Yesterday</option>
+                        <option value="This Week">This Week</option>
+                        <option value="This Month">This Month</option>
+                        <option value="Custom Range">Custom Range</option>
+                    </select>
+                    {timeRange === 'Custom Range' && (
+                        <div className="custom-date-inputs">
+                            <input 
+                                type="date" 
+                                className="input-field date-input"
+                                value={customStartDate}
+                                onChange={(e) => setCustomStartDate(e.target.value)}
+                                aria-label="Start Date"
+                            />
+                            <span className="date-separator">to</span>
+                            <input 
+                                type="date" 
+                                className="input-field date-input" 
+                                value={customEndDate}
+                                onChange={(e) => setCustomEndDate(e.target.value)}
+                                aria-label="End Date"
+                            />
+                        </div>
+                    )}
+                </div>
+             </div>
+
+             <div className="dashboard-tabs">
+                <button 
+                    className={`dashboard-tab-btn ${activeTab === 'Sales Summary' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('Sales Summary')}
+                >
+                    Sales Summary
+                </button>
+                 <button 
+                    className={`dashboard-tab-btn ${activeTab === 'AI Forecast' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('AI Forecast')}
+                >
+                    AI Forecast
+                </button>
+             </div>
+             
+             <div className="dashboard-divider"></div>
+
+            {activeTab === 'Sales Summary' ? (
+                <div className="dashboard-summary-grid">
+                    <div className="summary-card-new">
+                        <h3>Total Revenue</h3>
+                        <p>{formatCurrency(stats.totalRevenue)}</p>
+                    </div>
+                    
+                    <div className="summary-card-new outstanding-card">
+                         <h3>Outstanding</h3>
+                         <p>{formatCurrency(stats.totalOutstanding)}</p>
+                    </div>
+
+                    <div className="summary-card-new">
+                         <h3>Items Sold</h3>
+                         <p>{Math.round(stats.itemsSold)}</p>
+                    </div>
+
+                    <div className="summary-card-new">
+                         <h3>Transactions</h3>
+                         <p>{stats.transactions}</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="ai-forecast-placeholder">
+                    <p>AI Sales Forecasting is coming soon.</p>
+                </div>
+            )}
+        </div>
+    );
 };
 
 
@@ -1615,7 +1758,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         <div className="input-with-icons">
                             <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={handleSearchKeyDown} autoComplete="off" />
                             <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
@@ -2321,6 +2464,13 @@ const App = () => {
 
   const renderPage = () => {
       switch (activePage) {
+          case 'Dashboard':
+              return (
+                  <DashboardPage 
+                      sales={MOCK_SALES} 
+                      customers={MOCK_CUSTOMERS} 
+                  />
+              );
           case 'New Sale':
               return (
                   <NewSalePage 
