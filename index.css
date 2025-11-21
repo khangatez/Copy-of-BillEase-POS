@@ -2006,4 +2006,90 @@ body {
     border: 1px dashed var(--border-color);
 }
 
-/* ... rest of styles */
+/* --- PRINT STYLES --- */
+@media print {
+    /* Hide all UI chrome, headers, buttons, and settings panels */
+    .app-header,
+    .invoice-controls-panel,
+    .page-header,
+    .new-sale-footer,
+    .api-key-banner,
+    .toggle-group,
+    .action-button,
+    .action-button-primary,
+    .action-button-secondary,
+    .action-button-teal,
+    .action-button-green,
+    .action-button-danger,
+    .action-button-warning,
+    button {
+        display: none !important;
+    }
+
+    /* Reset Root Layout for Printing to allow full page usage */
+    html, body, #root {
+        height: auto !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background-color: white !important;
+    }
+
+    .app-main {
+        padding: 0 !important;
+        margin: 0 !important;
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: transparent !important;
+    }
+
+    .invoice-page-layout {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+        background: transparent !important;
+        gap: 0 !important;
+    }
+
+    .invoice-preview-container {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+    }
+
+    /* Target the specific invoice paper content */
+    .invoice-paper {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 auto !important; /* Center if width allows */
+        box-shadow: none !important;
+        border: none !important; /* Remove screen border for cleaner print */
+        width: 100% !important;
+        max-width: 100% !important;
+        page-break-inside: avoid;
+        /* Ensure text is sharp black for default themes, 
+           but respect colored themes if 'print-color-adjust' is supported */
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+    }
+
+    /* Adjust for Thermal Printer Sizes if selected */
+    .invoice-paper.size-4inch {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    /* Ensure A4/Letter sizing logic respects the print driver's scaling,
+       but setting width 100% usually yields best results for standard printers. */
+}
