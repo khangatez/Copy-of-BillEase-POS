@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import jsPDF from 'jspdf';
@@ -725,14 +726,14 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                 <div className="modal-header"><h3>Add New Product</h3><button onClick={onClose} className="close-button">&times;</button></div>
                 <div className="modal-body">
                     <form id={formId} onSubmit={handleAddProduct} className="add-product-form">
-                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus/></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil) {isTranslating && '(Translating...)'}</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} disabled={isTranslating} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus autoComplete="off"/></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil) {isTranslating && '(Translating...)'}</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} disabled={isTranslating} autoComplete="off"/></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2b">B2B Price</label><input ref={b2bRef} id="modal-new-product-b2b" type="number" step="0.01" className="input-field" value={newProductB2B} onChange={e => setNewProductB2B(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, b2cRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2c">B2C Price</label><input ref={b2cRef} id="modal-new-product-b2c" type="number" step="0.01" className="input-field" value={newProductB2C} onChange={e => setNewProductB2C(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, stockRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-stock">Initial Stock</label><input ref={stockRef} id="modal-new-product-stock" type="number" step="1" className="input-field" value={newProductStock} onChange={e => setNewProductStock(parseInt(e.target.value, 10) || 0)} onKeyDown={e => handleKeyDown(e, categoryRef)} /></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-category">Category (Optional)</label><input ref={categoryRef} id="modal-new-product-category" type="text" className="input-field" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} onKeyDown={e => handleKeyDown(e, subcategoryRef)} /></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-subcategory">Subcategory (Optional)</label><input ref={subcategoryRef} id="modal-new-product-subcategory" type="text" className="input-field" value={newProductSubcategory} onChange={e => setNewProductSubcategory(e.target.value)} onKeyDown={e => handleKeyDown(e, barcodeRef)} /></div>
-                        <div className="form-group"><label htmlFor="modal-new-product-barcode">Barcode (Optional)</label><input ref={barcodeRef} id="modal-new-product-barcode" type="text" className="input-field" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} /></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-category">Category (Optional)</label><input ref={categoryRef} id="modal-new-product-category" type="text" className="input-field" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} onKeyDown={e => handleKeyDown(e, subcategoryRef)} autoComplete="off"/></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-subcategory">Subcategory (Optional)</label><input ref={subcategoryRef} id="modal-new-product-subcategory" type="text" className="input-field" value={newProductSubcategory} onChange={e => setNewProductSubcategory(e.target.value)} onKeyDown={e => handleKeyDown(e, barcodeRef)} autoComplete="off"/></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-barcode">Barcode (Optional)</label><input ref={barcodeRef} id="modal-new-product-barcode" type="text" className="input-field" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} autoComplete="off"/></div>
                     </form>
                 </div>
                 <div className="modal-footer">
@@ -972,7 +973,7 @@ type CustomerHistoryModalProps = {
     onClose: () => void;
     customer: Customer | null;
     salesHistory: SaleData[];
-    onViewInvoice: (sale: SaleData) => void;
+    onViewInvoice: (saleData: SaleData) => void;
 };
 
 const CustomerHistoryModal: React.FC<CustomerHistoryModalProps> = ({ isOpen, onClose, customer, salesHistory, onViewInvoice }) => {
@@ -1585,7 +1586,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                     </div>
                     <div className="customer-details-new">
-                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value.replace(/\b\w/g, l => l.toUpperCase()) })} onKeyDown={handleCustomerNameKeydown} /></div>
+                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value.replace(/\b\w/g, l => l.toUpperCase()) })} onKeyDown={handleCustomerNameKeydown} autoComplete="off" /></div>
                         <div className="form-group">
                             <label htmlFor="customer-mobile">Customer Mobile</label>
                             <div className="mobile-input-group">
@@ -1604,6 +1605,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                                     value={mobileNumber} 
                                     onChange={e => handleCustomerMobileChange(mobileCode, e.target.value)} 
                                     onKeyDown={handleMobileKeydown}
+                                    autoComplete="off"
                                 />
                             </div>
                         </div>
@@ -1613,7 +1615,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         <div className="input-with-icons">
                             <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={handleSearchKeyDown} autoComplete="off" />
                             <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
@@ -1683,6 +1685,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                                                 handleItemUpdate(index, field, finalVal);
                                             }}
                                             aria-label={`Description for item ${index + 1}`}
+                                            autoComplete="off"
                                         />
                                     </td>
                                     <td data-label="Quantity"><input type="number" className="input-field" data-field="quantity" value={item.quantity} onChange={e => handleItemUpdate(index, 'quantity', parseFloat(e.target.value) || 0)} onKeyDown={e => handleGridKeyDown(e, index, 'quantity')} aria-label={`Quantity for ${item.name}`} step="0.001" /></td>
@@ -1926,7 +1929,7 @@ const ProductInventoryPage: React.FC<ProductInventoryPageProps> = ({ products, o
                         className="input-field" 
                         placeholder="Search by name, barcode, category..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={e => setSearchTerm(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))}
                     />
                 </div>
             </div>
@@ -2194,1335 +2197,216 @@ const InvoicePage: React.FC<InvoicePageProps> = ({ saleData, onNavigate, isFinal
     );
 };
 
-
-// --- NOTES PAGE COMPONENT ---
-type NotesPageProps = { notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>; };
-const NotesPage: React.FC<NotesPageProps> = ({ notes, setNotes }) => {
-    const [newNote, setNewNote] = useState(''); const nextNoteId = useRef(Math.max(0, ...notes.map(n => n.id)) + 1);
-    const handleAddNote = (e: React.FormEvent) => { e.preventDefault(); if (!newNote.trim()) return; setNotes(prev => [...prev, { id: nextNoteId.current++, text: newNote, completed: false }]); setNewNote(''); };
-    const toggleNote = (id: number) => setNotes(prev => prev.map(note => note.id === id ? { ...note, completed: !note.completed } : note));
-    const deleteNote = (id: number) => setNotes(prev => prev.filter(note => note.id !== id));
-    return (<div className="page-container"><h2 className="page-title">Notes & To-Do</h2><div className="notes-page-layout"><form onSubmit={handleAddNote} className="add-note-form"><input type="text" className="input-field" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Add a new note..." /><button type="submit" className="action-button-primary">Add</button></form><ul className="notes-list">{notes.map(note => (<li key={note.id} className={`note-item ${note.completed ? 'completed' : ''}`}><input type="checkbox" checked={note.completed} onChange={() => toggleNote(note.id)} /><span className="note-text">{note.text}</span><button onClick={() => deleteNote(note.id)} className="action-button">&times;</button></li>))}</ul></div></div>);
-};
-
-// --- ADD CUSTOMER MODAL ---
-type AddCustomerModalProps = { isOpen: boolean; onClose: () => void; onAddCustomer: (newCustomer: Omit<Customer, 'balance'>) => Promise<void>; };
-const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onAddCustomer }) => {
-    const [name, setName] = useState(''); const [mobile, setMobile] = useState(''); const [isAdding, setIsAdding] = useState(false);
-    const mobileRef = useRef<HTMLInputElement>(null); const submitRef = useRef<HTMLButtonElement>(null); const formId = "add-customer-form";
-    useEffect(() => { if (isOpen) { setName(''); setMobile(''); setIsAdding(false); } }, [isOpen]);
-    if (!isOpen) return null;
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); if (!name || !mobile) return; setIsAdding(true);
-        try { await onAddCustomer({ name, mobile }); onClose(); }
-        catch (error) { alert(`Error adding customer: ${error instanceof Error ? error.message : String(error)}`); }
-        finally { setIsAdding(false); }
-    };
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => { if (e.key === 'Enter') { e.preventDefault(); nextRef.current?.focus(); } };
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()}><div className="modal-header"><h3>Add New Customer</h3><button onClick={onClose} className="close-button">&times;</button></div><div className="modal-body"><form id={formId} onSubmit={handleSubmit} className="add-product-form"><div className="form-group"><label htmlFor="modal-new-customer-name">Customer Name</label><input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus /></div><div className="form-group"><label htmlFor="modal-new-customer-mobile">Mobile Number</label><input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required /></div></form></div><div className="modal-footer"><button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button><button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Customer'}</button></div></div></div>);
-};
-
-// --- EDIT CUSTOMER MODAL ---
-type EditCustomerModalProps = { 
-    isOpen: boolean; 
-    onClose: () => void; 
-    onUpdateCustomer: (originalMobile: string, updatedCustomer: Omit<Customer, 'balance'>) => Promise<void>;
-    customer: Customer | null;
-};
-const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ isOpen, onClose, onUpdateCustomer, customer }) => {
-    const [name, setName] = useState('');
-    const [mobile, setMobile] = useState('');
-    const [isUpdating, setIsUpdating] = useState(false);
-    const formId = "edit-customer-form";
-
-    useEffect(() => {
-        if (isOpen && customer) {
-            setName(customer.name);
-            setMobile(customer.mobile);
-            setIsUpdating(false);
-        }
-    }, [isOpen, customer]);
-
-    if (!isOpen || !customer) return null;
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name || !mobile) return;
-        setIsUpdating(true);
-        try {
-            await onUpdateCustomer(customer.mobile, { name, mobile });
-            onClose();
-        } catch (error) {
-            alert(`Error updating customer: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsUpdating(false);
-        }
-    };
-
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>Edit Customer</h3>
-                    <button onClick={onClose} className="close-button">&times;</button>
-                </div>
-                <div className="modal-body">
-                    <form id={formId} onSubmit={handleSubmit} className="add-product-form">
-                        <div className="form-group">
-                            <label htmlFor="modal-edit-customer-name">Customer Name</label>
-                            <input id="modal-edit-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} required autoFocus />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="modal-edit-customer-mobile">Mobile Number</label>
-                            <input id="modal-edit-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} required />
-                        </div>
-                    </form>
-                </div>
-                <div className="modal-footer">
-                    <button className="action-button-secondary" type="button" onClick={onClose} disabled={isUpdating}>Cancel</button>
-                    <button type="submit" form={formId} className="action-button-primary" disabled={isUpdating}>
-                        {isUpdating ? 'Updating...' : 'Update Customer'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-// --- CUSTOMER MANAGEMENT PAGE ---
-type CustomerManagementPageProps = {
-    customers: Customer[];
-    onAddCustomer: (newCustomer: Omit<Customer, 'balance'>) => Promise<void>;
-    onUpdateCustomer: (originalMobile: string, updatedCustomer: Omit<Customer, 'balance'>) => Promise<void>;
-    onDeleteCustomer: (mobile: string) => Promise<void>;
-    salesHistory: SaleData[];
-    onViewInvoice: (sale: SaleData) => void;
-};
-const CustomerManagementPage: React.FC<CustomerManagementPageProps> = ({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer, salesHistory }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const filteredCustomers = useMemo(() => {
-        const lower = searchTerm.toLowerCase();
-        const sortedCustomers = [...customers].sort((a, b) => a.name.localeCompare(b.name));
-        if (!lower) return sortedCustomers;
-        return sortedCustomers.filter(c => c.name.toLowerCase().includes(lower) || c.mobile.includes(lower));
-    }, [searchTerm, customers]);
-
-    // Handle cases where selected customer is updated or deleted from the main list
-    useEffect(() => {
-        if (selectedCustomer) {
-            const freshCustomerData = customers.find(c => c.mobile === selectedCustomer.mobile);
-            if (freshCustomerData) {
-                // Update selected customer if data has changed (e.g., name, mobile)
-                if (JSON.stringify(freshCustomerData) !== JSON.stringify(selectedCustomer)) {
-                    setSelectedCustomer(freshCustomerData);
-                }
-            } else {
-                // Deselect if customer no longer exists
-                setSelectedCustomer(null);
-            }
-        } else if (filteredCustomers.length > 0) {
-            // Select the first customer by default if nothing is selected
-            setSelectedCustomer(filteredCustomers[0]);
-        }
-    }, [customers, selectedCustomer, filteredCustomers]);
-
-    const selectedCustomerSales = useMemo(() => {
-        if (!selectedCustomer) return [];
-        return salesHistory
-            .filter(sale => sale.customerMobile === selectedCustomer.mobile)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [salesHistory, selectedCustomer]);
-    
-    const handleStartEdit = () => {
-        if (selectedCustomer) {
-            setIsEditModalOpen(true);
-        }
-    };
-
-    const handleStartDelete = () => {
-        if (selectedCustomer) {
-            setCustomerToDelete(selectedCustomer);
-        }
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!customerToDelete) return;
-        setIsDeleting(true);
-        try {
-            await onDeleteCustomer(customerToDelete.mobile);
-            setCustomerToDelete(null);
-            // The useEffect will handle deselecting the customer
-        } catch (error) {
-            alert(`Error deleting customer: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    return (
-        <div className="page-container customer-management-page">
-            <AddCustomerModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAddCustomer={onAddCustomer} />
-            <EditCustomerModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onUpdateCustomer={onUpdateCustomer} customer={selectedCustomer} />
-            <ConfirmationModal
-                isOpen={!!customerToDelete}
-                onClose={() => setCustomerToDelete(null)}
-                onConfirm={handleConfirmDelete}
-                title="Confirm Deletion"
-                message={<>Are you sure you want to delete <strong>{customerToDelete?.name}</strong>? This action cannot be undone.</>}
-                isConfirming={isDeleting}
-                confirmText="Yes, Delete"
-            />
-            
-            <div className="customer-management-header">
-                 <h2 className="page-title">Customer Management</h2>
-                 <div className="page-header-actions">
-                     <button className="action-button-primary add-new-customer-btn" onClick={() => setIsAddModalOpen(true)}>Add New Customer</button>
-                 </div>
-            </div>
-            
-            <div className="customer-management-layout">
-                <aside className="customer-list-panel">
-                    <div className="customer-search">
-                        <div className="input-with-icon">
-                            <svg className="search-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
-                            <input type="text" className="input-field" placeholder="Search customer" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                        </div>
-                    </div>
-                    <div className="customer-list">
-                        {filteredCustomers.length > 0 ? (
-                            filteredCustomers.map(c => (
-                                <button key={c.mobile} className={`customer-list-item ${selectedCustomer?.mobile === c.mobile ? 'active' : ''}`} onClick={() => setSelectedCustomer(c)}>
-                                    <span className="customer-name">{c.name}</span>
-                                    <span className="customer-mobile">{c.mobile}</span>
-                                </button>
-                            ))
-                        ) : (
-                             <div className="customer-list-empty"><p>No customers found.</p></div>
-                        )}
-                    </div>
-                </aside>
-
-                <main className="customer-details-panel">
-                    {selectedCustomer ? (
-                        <div className="customer-details-view">
-                            <div className="customer-details-header">
-                                <div className="customer-info">
-                                    <h3>{selectedCustomer.name}</h3>
-                                    <p>{selectedCustomer.mobile}</p>
-                                </div>
-                                <div className="customer-actions">
-                                    <button className="action-button-warning edit-btn" onClick={handleStartEdit}>Edit</button>
-                                    <button className="action-button-danger delete-btn" onClick={handleStartDelete}>Delete</button>
-                                </div>
-                            </div>
-                            
-                            <div className="customer-purchase-history">
-                                <h4>Purchase History</h4>
-                                {selectedCustomerSales.length > 0 ? (
-                                    <div className="purchase-history-list">
-                                        {selectedCustomerSales.map(sale => (
-                                            <div key={sale.id} className="purchase-history-card">
-                                                <div className="purchase-card-header">
-                                                    <span>{new Date(sale.date).toLocaleString()}</span>
-                                                    <span className="purchase-card-total">Total: {formatCurrency(sale.grandTotal)}</span>
-                                                </div>
-                                                <ul className="purchase-card-items">
-                                                    {sale.saleItems.filter(item => !item.isReturn).map((item, index) => (
-                                                        <li key={`${sale.id}-item-${index}`}>
-                                                           {item.name} (Qty: {formatQuantity(item.quantity)}, Price: {formatCurrency(item.price)})
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p>No purchase history for this customer.</p>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="customer-details-placeholder"><p>Select a customer to view their details and purchase history.</p></div>
-                    )}
-                </main>
-            </div>
-        </div>
-    );
-};
-
-
-// --- BALANCE DUE PAGE ---
-type BalanceDuePageProps = { customersWithBalance: Customer[]; };
-const BalanceDuePage: React.FC<BalanceDuePageProps> = ({ customersWithBalance }) => {
-    return (<div className="page-container"><h2 className="page-title">Balance Due Customers</h2><div className="inventory-list-container"><table className="customer-table inventory-table"><thead><tr><th>Customer Name</th><th>Mobile Number</th><th>Balance Due</th></tr></thead><tbody>{customersWithBalance.length === 0 && (<tr><td colSpan={3} data-label="Status" style={{ textAlign: 'center', padding: '2rem' }}>No customers with outstanding balance.</td></tr>)}{customersWithBalance.sort((a,b) => b.balance - a.balance).map(c => (<tr key={c.mobile}><td data-label="Customer Name">{c.name}</td><td data-label="Mobile Number">{c.mobile}</td><td data-label="Balance Due">{formatCurrency(c.balance)}</td></tr>))}</tbody></table></div></div>);
-};
-
-
-// --- EXPENSES PAGE COMPONENT ---
-type ExpensesPageProps = {
-    expenses: Expense[];
-    onAddExpense: (description: string, amount: number) => Promise<void>;
-    shops: Shop[];
-};
-const ExpensesPage: React.FC<ExpensesPageProps> = ({ expenses, onAddExpense, shops }) => {
-    const [description, setDescription] = useState('');
-    const [amount, setAmount] = useState('');
-    const [isAdding, setIsAdding] = useState(false);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const numericAmount = parseFloat(amount);
-        if (!description.trim() || isNaN(numericAmount) || numericAmount <= 0) {
-            alert('Please enter a valid description and a positive amount.');
-            return;
-        }
-        setIsAdding(true);
-        try {
-            await onAddExpense(description, numericAmount);
-            setDescription('');
-            setAmount('');
-        } catch (error) {
-            alert(`Error adding expense: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsAdding(false);
-        }
-    };
-
-    return (
-        <div className="page-container expenses-page">
-            <h2 className="page-title">Daily Expenses</h2>
-            <div className="management-card">
-                <h3>Add New Expense</h3>
-                <form onSubmit={handleSubmit} className="add-expense-form">
-                    <div className="form-group">
-                        <label htmlFor="expense-desc">Description</label>
-                        <input id="expense-desc" type="text" className="input-field" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., Office Supplies, Rent" required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="expense-amount">Amount</label>
-                        <input id="expense-amount" type="number" step="0.01" className="input-field" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
-                    </div>
-                    <button type="submit" className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Expense'}</button>
-                </form>
-            </div>
-            <div className="inventory-list-container">
-                 <h3>Expense History</h3>
-                 <table className="inventory-table expenses-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Shop</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {expenses.length === 0 && (<tr><td colSpan={4} data-label="Status" style={{textAlign: 'center', padding: '2rem'}}>No expenses recorded.</td></tr>)}
-                        {expenses.map(expense => (
-                            <tr key={expense.id}>
-                                <td data-label="Date">{new Date(expense.date).toLocaleString()}</td>
-                                <td data-label="Description">{expense.description}</td>
-                                <td data-label="Shop">{shops.find(s => s.id === expense.shopId)?.name || 'N/A'}</td>
-                                <td data-label="Amount">{formatCurrency(expense.amount)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-
 // --- SETTINGS PAGE COMPONENT ---
 type SettingsPageProps = {
-    theme: Theme;
+    currentTheme: Theme;
     onThemeChange: (theme: Theme) => void;
-    settings: AppSettings;
-    onSettingsChange: (settings: AppSettings) => void;
-    appName: string;
-    onAppNameChange: (name: string) => void;
-    onExportData: () => void;
-    onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    isExporting: boolean;
-    isImporting: boolean;
-};
-const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeChange, settings, onSettingsChange, appName, onAppNameChange, onExportData, onImportData, isExporting, isImporting, }) => {
-    const themes: {id: Theme, name: string}[] = [{id: 'light', name: 'Light'},{id: 'dark', name: 'Dark'},{id: 'professional-light', name: 'Professional'},{id: 'charcoal', name: 'Charcoal'},{id: 'slate', name: 'Slate'},{id: 'ocean-blue', name: 'Ocean Blue'},{id: 'forest-green', name: 'Forest Green'},{id: 'sunset-orange', name: 'Sunset Orange'},{id: 'monokai', name: 'Monokai'},{id: 'nord', name: 'Nord'}];
-    return (<div className="page-container"><h2 className="page-title">Settings</h2><div className="settings-layout"><div className="settings-card"><h3>General</h3><div className="form-group"><label htmlFor="app-name">POS Name</label><input id="app-name" type="text" className="input-field" value={appName} onChange={e => onAppNameChange(e.target.value)} /></div></div><div className="settings-card"><h3>Interface Theme</h3><div className="toggle-group"><label>Theme</label><div className="toggle-switch theme-selector">{themes.map(t => (<button key={t.id} className={`toggle-button ${theme === t.id ? 'active' : ''}`} onClick={() => onThemeChange(t.id)}>{t.name}</button>))}</div></div></div><div className="settings-card"><h3>Invoice Customization</h3><div className="form-group"><label htmlFor="invoice-footer">Invoice Footer Text</label><textarea id="invoice-footer" className="input-field" rows={3} value={settings.invoiceFooter} onChange={e => onSettingsChange({ ...settings, invoiceFooter: e.target.value })}></textarea></div></div><div className="settings-card"><h3>Data Management</h3><p style={{color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 'var(--padding-md)'}}>Export all your application data to a JSON file for backup. You can import this file later to restore your data.<br/><strong>Warning:</strong> Importing will overwrite all current data.</p><div className="data-management-actions"><button onClick={onExportData} className="action-button-secondary" disabled={isExporting || isImporting}>{isExporting ? 'Exporting...' : 'Export All Data'}</button><label htmlFor="import-file-input" className={`action-button-danger ${isImporting || isExporting ? 'disabled' : ''}`} style={{cursor: 'pointer'}}>{isImporting ? 'Importing...' : 'Import Data'}</label><input id="import-file-input" type="file" accept=".json" style={{ display: 'none' }} onChange={onImportData} disabled={isImporting || isImporting} /></div></div></div></div>);
 };
 
-// --- SHOP MANAGEMENT PAGE ---
-type ShopManagementPageProps = { users: User[]; shops: Shop[]; onAddShop: (name: string) => Promise<void>; onAddUser: (user: Omit<User, 'password' | 'resetToken' | 'resetTokenExpiry'> & { password?: string }) => Promise<void>; onUpdateShop: (id: number, name: string) => void; onAdminPasswordReset: (username: string, newPass: string) => Promise<void>;};
-const ShopManagementPage: React.FC<ShopManagementPageProps> = ({ users, shops, onAddShop, onAddUser, onUpdateShop, onAdminPasswordReset }) => {
-    const [newShopName, setNewShopName] = useState(''); const [newUsername, setNewUsername] = useState(''); const [newEmail, setNewEmail] = useState(''); const [newPassword, setNewPassword] = useState(''); const [newUserRole, setNewUserRole] = useState<'admin' | 'cashier'>('cashier'); const [newUserShopId, setNewUserShopId] = useState<number | undefined>(shops[0]?.id); const [editingShopId, setEditingShopId] = useState<number | null>(null); const [editingShopName, setEditingShopName] = useState('');
-    const handleAddShop = async (e: React.FormEvent) => { e.preventDefault(); if (newShopName.trim()) { try { await onAddShop(newShopName.trim()); setNewShopName(''); } catch (error) { alert(`Error: ${error instanceof Error ? error.message : String(error)}`); } } };
-    const handleAddUser = async (e: React.FormEvent) => { e.preventDefault(); if (newUsername.trim() && newPassword.trim() && newUserShopId) { try { await onAddUser({ username: newUsername.trim(), email: newEmail.trim(), password: newPassword.trim(), role: newUserRole, shopId: newUserShopId, }); setNewUsername(''); setNewEmail(''); setNewPassword(''); setNewUserRole('cashier'); setNewUserShopId(shops[0]?.id); } catch (error) { alert(`Error: ${error instanceof Error ? error.message : String(error)}`); } } };
-    const handleStartEdit = (shop: Shop) => { setEditingShopId(shop.id); setEditingShopName(shop.name); }; const handleCancelEdit = () => { setEditingShopId(null); setEditingShopName(''); }
-    const handleSaveEdit = (id: number) => { if (editingShopName.trim()) { onUpdateShop(id, editingShopName.trim()); handleCancelEdit(); } }
-    const handleResetPasswordClick = (username: string) => { const newPass = prompt(`Enter new password for user '${username}':`); if (newPass && newPass.trim()) { onAdminPasswordReset(username, newPass.trim()); } else if (newPass !== null) { alert('Password cannot be empty.'); } };
-    return (<div className="page-container page-container-full-width"><h2 className="page-title">User & Shop Management</h2><div className="shop-management-layout"><div className="management-card"><h3>Manage Shops</h3><form onSubmit={handleAddShop}><div className="form-group"><label htmlFor="new-shop-name">New Shop Name</label><input id="new-shop-name" type="text" className="input-field" value={newShopName} onChange={e => setNewShopName(e.target.value)} placeholder="e.g., Downtown Branch" /></div><button type="submit" className="action-button-primary">Add Shop</button></form><div className="shop-list-container"><h4>Existing Shops</h4><ul className="shop-list">{shops.map(shop => (<li key={shop.id} className="shop-list-item">{editingShopId === shop.id ? (<div className="edit-shop-form"><input type="text" className="input-field" value={editingShopName} onChange={(e) => setEditingShopName(e.target.value)} /><div className="edit-shop-actions"><button className="action-button-secondary" onClick={handleCancelEdit}>Cancel</button><button className="action-button-primary" onClick={() => handleSaveEdit(shop.id)}>Save</button></div></div>) : (<><span>{shop.name}</span><button className="action-button-secondary" onClick={() => handleStartEdit(shop)}>Edit</button></>)}</li>))}</ul></div></div><div className="management-card"><h3>Manage Users</h3><form onSubmit={handleAddUser}><div className="form-group"><label htmlFor="new-username">Username</label><input id="new-username" type="text" className="input-field" value={newUsername} onChange={e => setNewUsername(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-email">Email</label><input id="new-email" type="email" className="input-field" value={newEmail} onChange={e => setNewEmail(e.target.value)} /></div><div className="form-group"><label htmlFor="new-password">Password</label><input id="new-password" type="text" className="input-field" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></div><div className="form-group"><label htmlFor="new-user-role">Role</label><select id="new-user-role" className="select-field" value={newUserRole} onChange={e => setNewUserRole(e.target.value as 'admin' | 'cashier')}><option value="cashier">Cashier</option><option value="admin">Admin</option></select></div><div className="form-group"><label htmlFor="new-user-shop">Shop</label><select id="new-user-shop" className="select-field" value={newUserShopId} onChange={e => setNewUserShopId(Number(e.target.value))} required>{shops.map(shop => (<option key={shop.id} value={shop.id}>{shop.name}</option>))}</select></div><button type="submit" className="action-button-primary">Add User</button></form><div className="user-list-container"><table className="inventory-table"><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Shop</th><th>Actions</th></tr></thead><tbody>{users.filter(u => u.role !== 'super_admin').map(user => (<tr key={user.username}><td data-label="Username">{user.username}</td><td data-label="Email">{user.email || 'N/A'}</td><td data-label="Role">{user.role}</td><td data-label="Shop">{shops.find(s => s.id === user.shopId)?.name || 'N/A'}</td><td data-label="Actions"><button className="action-button-secondary" onClick={() => handleResetPasswordClick(user.username)}>Reset Password</button></td></tr>))}</tbody></table></div></div></div></div>);
-};
-
-// --- BAR CHART COMPONENT ---
-interface ChartDataItem { label: string; value: number; }
-type BarChartProps = {
-    data: ChartDataItem[];
-    title: string;
-};
-const BarChart: React.FC<BarChartProps> = ({ data, title }) => {
-    const svgRef = useRef<SVGSVGElement>(null);
-    const [tooltip, setTooltip] = useState<{ content: string; x: number; y: number } | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [dimensions, setDimensions] = useState({ width: 0, height: 280 });
-
-    useEffect(() => {
-        if (containerRef.current) {
-            const resizeObserver = new ResizeObserver(entries => {
-                if (entries[0]) {
-                    setDimensions({ width: entries[0].contentRect.width, height: 280 });
-                }
-            });
-            resizeObserver.observe(containerRef.current);
-            return () => resizeObserver.disconnect();
-        }
-    }, []);
-
-    if (!data || data.length === 0) {
-        return (
-            <div className="chart-container" ref={containerRef}>
-                <h3 className="chart-title">{title}</h3>
-                <div className="chart-placeholder">No data available for this period.</div>
-            </div>
-        );
-    }
-    
-    const { width, height } = dimensions;
-    const padding = { top: 20, right: 20, bottom: 60, left: 60 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-
-    const maxValue = Math.max(...data.map(d => d.value), 0);
-    const yScale = chartHeight / (maxValue === 0 ? 1 : maxValue);
-    const barWidth = chartWidth / data.length * 0.8;
-    const barGap = chartWidth / data.length * 0.2;
-
-    const handleMouseOver = (e: React.MouseEvent, item: ChartDataItem) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const svgRect = svgRef.current?.getBoundingClientRect();
-        if(!svgRect) return;
-        setTooltip({
-            content: `${item.label}: ${formatCurrency(item.value)}`,
-            x: rect.left - svgRect.left + rect.width / 2,
-            y: rect.top - svgRect.top - 10,
-        });
-    };
-
-    const handleMouseOut = () => setTooltip(null);
-    
-    const yAxisTicks = useMemo(() => {
-        if (maxValue === 0) return [0];
-        const tickCount = 5;
-        const ticks = [];
-        for (let i = 0; i <= tickCount; i++) {
-            ticks.push((maxValue / tickCount) * i);
-        }
-        return ticks;
-    }, [maxValue]);
-
+const SettingsPage: React.FC<SettingsPageProps> = ({ currentTheme, onThemeChange }) => {
+    // Requested themes + others available in CSS
+    const themes: Theme[] = ['light', 'dark', 'ocean-blue', 'forest-green', 'sunset-orange', 'monokai', 'nord', 'professional-light', 'charcoal', 'slate'];
 
     return (
-        <div className="chart-container" ref={containerRef}>
-            <h3 className="chart-title">{title}</h3>
-            <div className="chart-wrapper">
-                <svg ref={svgRef} width={width} height={height}>
-                    {/* Y-Axis */}
-                    <g className="y-axis">
-                        {yAxisTicks.map((tick, i) => (
-                            <g key={i} transform={`translate(0, ${padding.top + chartHeight - tick * yScale})`}>
-                                <line x1={padding.left - 5} y1="0" x2={padding.left} y2="0" stroke="currentColor" />
-                                <text x={padding.left - 10} y="0" dy="0.32em" textAnchor="end">{tick > 1000 ? `${(tick/1000).toFixed(1)}k` : tick.toFixed(0)}</text>
-                                <line x1={padding.left} y1="0" x2={width - padding.right} y2="0" stroke="currentColor" strokeDasharray="2,2" opacity="0.2" />
-                            </g>
-                        ))}
-                    </g>
-
-                    {/* Bars and X-Axis Labels */}
-                    {data.map((item, index) => {
-                        const barHeight = item.value * yScale;
-                        const x = padding.left + index * (barWidth + barGap);
-                        const y = padding.top + chartHeight - barHeight;
-                        return (
-                            <g key={index}>
-                                <rect
-                                    x={x}
-                                    y={y}
-                                    width={barWidth}
-                                    height={barHeight}
-                                    className="chart-bar"
-                                    onMouseOver={(e) => handleMouseOver(e, item)}
-                                    onMouseOut={handleMouseOut}
-                                />
-                                <text
-                                    x={x + barWidth / 2}
-                                    y={padding.top + chartHeight + 15}
-                                    className="x-axis-label"
-                                    textAnchor="middle"
+        <div className="page-container">
+            <div className="page-header">
+                <h2 className="page-title">Settings</h2>
+            </div>
+            <div className="settings-layout">
+                <div className="settings-card">
+                    <h3>Appearance</h3>
+                    <div className="form-group">
+                        <label style={{ marginBottom: 'var(--padding-sm)', display: 'block' }}>Application Theme</label>
+                        <div className="theme-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 'var(--padding-sm)' }}>
+                            {themes.map(theme => (
+                                <button
+                                    key={theme}
+                                    className={`toggle-button ${currentTheme === theme ? 'active' : ''}`}
+                                    onClick={() => onThemeChange(theme)}
+                                    style={{ 
+                                        textTransform: 'capitalize', 
+                                        padding: '12px',
+                                        border: currentTheme === theme ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                                        backgroundColor: currentTheme === theme ? 'var(--background-tertiary)' : 'transparent',
+                                        color: currentTheme === theme ? 'var(--accent-primary)' : 'var(--text-primary)',
+                                        fontWeight: 500,
+                                        cursor: 'pointer',
+                                        borderRadius: 'var(--border-radius)'
+                                    }}
                                 >
-                                    {item.label}
-                                </text>
-                            </g>
-                        );
-                    })}
-                </svg>
-                {tooltip && (
-                    <div className="chart-tooltip" style={{ transform: `translate(${tooltip.x}px, ${tooltip.y}px)` }}>
-                        {tooltip.content}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// --- DASHBOARD & REPORTS PAGE ---
-type DashboardAndReportsPageProps = {
-    salesHistory: SaleData[];
-    products: Product[];
-    shops: Shop[];
-    onViewInvoice: (sale: SaleData) => void;
-};
-
-// Fix: Destructure 'shops' from props to make it available in the component.
-const DashboardAndReportsPage: React.FC<DashboardAndReportsPageProps> = ({ salesHistory, products, shops, onViewInvoice }) => {
-    const [filterPeriod, setFilterPeriod] = useState<'7days' | '30days' | 'all'>('7days');
-
-    const filteredSales = useMemo(() => {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        if (filterPeriod === 'all') return salesHistory;
-
-        const days = filterPeriod === '7days' ? 7 : 30;
-        const startDate = new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
-
-        return salesHistory.filter(sale => {
-            const saleDate = new Date(sale.date);
-            return saleDate >= startDate;
-        });
-    }, [salesHistory, filterPeriod]);
-
-    const { stats, salesOverTime, topProducts, salesByCategory } = useMemo(() => {
-        const totalSales = filteredSales.reduce((acc, sale) => acc + sale.grandTotal, 0);
-        const transactionCount = filteredSales.length;
-        const avgSaleValue = transactionCount > 0 ? totalSales / transactionCount : 0;
-        
-        // Sales over time
-        const salesByDate: { [key: string]: number } = {};
-        filteredSales.forEach(sale => {
-            const dateStr = new Date(sale.date).toLocaleDateString('en-CA'); // YYYY-MM-DD
-            salesByDate[dateStr] = (salesByDate[dateStr] || 0) + sale.grandTotal;
-        });
-        const salesOverTimeData = Object.entries(salesByDate)
-          .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
-          .map(([date, total]) => ({ label: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: total }));
-
-        // Top selling products
-        const productSales = new Map<string, { value: number }>();
-        filteredSales.forEach(sale => {
-            sale.saleItems.forEach(item => {
-                if (!item.isReturn) {
-                    const existing = productSales.get(item.name) || { value: 0 };
-                    existing.value += item.quantity * item.price;
-                    productSales.set(item.name, existing);
-                }
-            });
-        });
-        const topProductsData = [...productSales.entries()]
-            .map(([label, { value }]) => ({ label, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 5);
-
-        // Sales by category
-        const categorySales = new Map<string, { value: number }>();
-        filteredSales.forEach(sale => {
-            sale.saleItems.forEach(item => {
-                if (!item.isReturn) {
-                    const product = products.find(p => p.id === item.productId);
-                    const category = product?.category || 'Uncategorized';
-                    const existing = categorySales.get(category) || { value: 0 };
-                    existing.value += item.quantity * item.price;
-                    categorySales.set(category, existing);
-                }
-            });
-        });
-        const salesByCategoryData = [...categorySales.entries()]
-            .map(([label, { value }]) => ({ label, value }))
-            .sort((a, b) => b.value - a.value);
-
-        return {
-            stats: { totalSales, transactionCount, avgSaleValue },
-            salesOverTime: salesOverTimeData,
-            topProducts: topProductsData,
-            salesByCategory: salesByCategoryData,
-        };
-    }, [filteredSales, products]);
-    
-    return (
-        <div className="page-container dashboard-page">
-            <div className="page-header">
-                <h2 className="page-title">Dashboard & Reports</h2>
-                <div className="report-filters">
-                    <div className="toggle-switch">
-                        <button className={`toggle-button ${filterPeriod === '7days' ? 'active' : ''}`} onClick={() => setFilterPeriod('7days')}>Last 7 Days</button>
-                        <button className={`toggle-button ${filterPeriod === '30days' ? 'active' : ''}`} onClick={() => setFilterPeriod('30days')}>Last 30 Days</button>
-                        <button className={`toggle-button ${filterPeriod === 'all' ? 'active' : ''}`} onClick={() => setFilterPeriod('all')}>All Time</button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="summary-cards">
-                <div className="summary-card"><h3>Total Revenue</h3><p>{formatCurrency(stats.totalSales)}</p></div>
-                <div className="summary-card"><h3>Transactions</h3><p>{stats.transactionCount}</p></div>
-                <div className="summary-card"><h3>Avg. Sale Value</h3><p>{formatCurrency(stats.avgSaleValue)}</p></div>
-            </div>
-
-            <div className="dashboard-grid">
-                <BarChart title="Sales Over Time" data={salesOverTime} />
-                <BarChart title="Top 5 Selling Products" data={topProducts} />
-                <BarChart title="Sales by Category" data={salesByCategory} />
-            </div>
-            
-            <div className="recent-activity">
-                <h3 className="section-title">Recent Transactions</h3>
-                <div className="inventory-list-container">
-                    <table className="inventory-table sales-history-table">
-                        <thead>
-                            {/* Fix: Add a 'Shop' column to the table header. */}
-                            <tr><th>Date</th><th>Customer</th><th>Shop</th><th>Items</th><th>Total Amount</th><th>Actions</th></tr>
-                        </thead>
-                        <tbody>
-                            {filteredSales.slice(0, 20).map(sale => (
-                                <tr key={sale.id}>
-                                    <td data-label="Date">{new Date(sale.date).toLocaleString()}</td>
-                                    <td data-label="Customer">{sale.customerName || 'N/A'}</td>
-                                    {/* Fix: Display the shop name for each transaction. */}
-                                    <td data-label="Shop">{shops.find(s => s.id === sale.shopId)?.name || 'N/A'}</td>
-                                    <td data-label="Items">{sale.saleItems.length}</td>
-                                    <td data-label="Total Amount">{formatCurrency(sale.grandTotal)}</td>
-                                    <td data-label="Actions"><button className="action-button-secondary" onClick={() => onViewInvoice(sale)}>View Invoice</button></td>
-                                </tr>
+                                    {theme.replace(/-/g, ' ')}
+                                </button>
                             ))}
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-// --- ORDER MANAGEMENT PAGE ---
-type OrderManagementPageProps = {
-    purchaseOrders: PurchaseOrder[];
-    salesOrders: SalesOrder[];
-    onUpdateOrderStatus: (orderType: 'purchase' | 'sales', orderId: number, newStatus: OrderStatus) => Promise<void>;
-};
-const OrderManagementPage: React.FC<OrderManagementPageProps> = ({ purchaseOrders, salesOrders, onUpdateOrderStatus }) => {
-    const [activeTab, setActiveTab] = useState<'sales' | 'purchase'>('sales');
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | PurchaseOrder | null>(null);
+// --- APP COMPONENT ---
+const App = () => {
+  const [activePage, setActivePage] = useState('New Sale');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
+  const [isFitToScreen, setIsFitToScreen] = useState(false);
+  const [appTheme, setAppTheme] = useState<Theme>('light');
+  const [invoiceAppearance, setInvoiceAppearance] = useState<InvoiceAppearance>({
+      fontStyle: 'sans-serif',
+      margins: { top: 20, right: 20, bottom: 20, left: 20 },
+      paperSize: 'a4',
+      fontSize: 'medium',
+      theme: 'modern',
+  });
+  // Session data for multiple bills (0, 1, 2)
+  const [billSessions, setBillSessions] = useState<SaleSession[]>([
+      { customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, discount: 0, saleItems: [], amountPaid: '' },
+      { customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, discount: 0, saleItems: [], amountPaid: '' },
+      { customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English', taxPercent: 0, discount: 0, saleItems: [], amountPaid: '' },
+  ]);
+  const [activeBillIndex, setActiveBillIndex] = useState(0);
+  const [saleDataToPreview, setSaleDataToPreview] = useState<SaleData | null>(null);
+  const [isSaleFinalized, setIsSaleFinalized] = useState(false);
 
-    const handleViewDetails = (order: SalesOrder | PurchaseOrder) => {
-        setSelectedOrder(order);
-        setIsDetailsModalOpen(true);
-    };
+  useEffect(() => {
+      // Initialize mock data
+      setProducts(MOCK_PRODUCTS);
+      setShops([{ id: 1, name: "Main Street Branch" }, { id: 2, name: "Downtown Kiosk" }]);
+      // Auto-login mock
+      setCurrentUser({ username: 'superadmin', role: 'super_admin', email: 'super@admin.com' });
+      setSelectedShopId(1);
+  }, []);
 
-    const handleStatusChange = (order: SalesOrder | PurchaseOrder, newStatus: OrderStatus) => {
-        const orderType = 'customerName' in order ? 'sales' : 'purchase';
-        onUpdateOrderStatus(orderType, order.id, newStatus);
-    };
+  useEffect(() => {
+      document.body.className = `theme-${appTheme}`;
+  }, [appTheme]);
 
-    const ordersToShow = activeTab === 'sales' ? salesOrders : purchaseOrders;
-    
-    return (
-        <div className="page-container order-management-page">
-            <OrderDetailsModal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} order={selectedOrder} />
-            <div className="page-header">
-                <h2 className="page-title">Order Management</h2>
-                <div className="page-header-actions">
-                    <button className="action-button-primary" onClick={() => alert("Add New Order functionality coming soon!")}>
-                        + Add New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
-                    </button>
-                </div>
-            </div>
+  const handleSessionUpdate = (updates: Partial<SaleSession>) => {
+      setBillSessions(prev => {
+          const newSessions = [...prev];
+          newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates };
+          return newSessions;
+      });
+  };
 
-            <div className="order-tabs">
-                <button className={`tab-button ${activeTab === 'sales' ? 'active' : ''}`} onClick={() => setActiveTab('sales')}>Sales Orders ({salesOrders.length})</button>
-                <button className={`tab-button ${activeTab === 'purchase' ? 'active' : ''}`} onClick={() => setActiveTab('purchase')}>Purchase Orders ({purchaseOrders.length})</button>
-            </div>
+  const handleNavigate = (page: string) => {
+      setActivePage(page);
+      if (page === 'New Sale') {
+          setIsSaleFinalized(false);
+          setSaleDataToPreview(null);
+      }
+  };
 
-            <div className="inventory-list-container">
-                <table className="inventory-table">
-                    <thead>
-                        <tr>
-                            <th>Order ID</th>
-                            <th>Date</th>
-                            <th>{activeTab === 'sales' ? 'Customer' : 'Supplier'}</th>
-                            <th>Total Amount</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {ordersToShow.length === 0 ? (
-                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No {activeTab} orders found.</td></tr>
-                        ) : (
-                            ordersToShow.map(order => (
-                                <tr key={order.id}>
-                                    <td data-label="Order ID">#{order.id}</td>
-                                    <td data-label="Date">{new Date(order.orderDate).toLocaleDateString()}</td>
-                                    <td data-label={activeTab === 'sales' ? 'Customer' : 'Supplier'}>
-                                        {'customerName' in order ? order.customerName : order.supplierName}
-                                    </td>
-                                    <td data-label="Total Amount">{formatCurrency(order.totalAmount)}</td>
-                                    <td data-label="Status"><span className={`status-badge ${order.status.toLowerCase()}`}>{order.status}</span></td>
-                                    <td data-label="Actions">
-                                        <div className="table-action-buttons">
-                                            <button className="action-button-secondary" onClick={() => handleViewDetails(order)}>Details</button>
-                                            <select 
-                                                className="select-field status-changer" 
-                                                value={order.status} 
-                                                onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
-                                            >
-                                                <option value="Pending">Pending</option>
-                                                <option value="Fulfilled">Fulfilled</option>
-                                                <option value="Cancelled">Cancelled</option>
-                                            </select>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
+  const handlePreviewInvoice = (saleData: SaleData) => {
+      setSaleDataToPreview(saleData);
+      setActivePage('Invoice');
+  };
 
-// --- APP COMPONENT (MAIN) ---
-const App: React.FC = () => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [loginError, setLoginError] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
-    const [currentPage, setCurrentPage] = useState('New Sale');
-    
-    // Data State
-    const [shops, setShops] = useState<Shop[]>([]);
-    const [users, setUsers] = useState<User[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [sales, setSales] = useState<SaleData[]>([]);
-    const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
-    const [expenses, setExpenses] = useState<Expense[]>([]);
-    const [notes, setNotes] = useState<Note[]>(initialNotes);
-    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-    const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-    
-    // UI State
-    const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
-    const [appName, setAppName] = useState('BillEase POS');
-    const [theme, setTheme] = useState<Theme>('professional-light');
-    const [appSettings, setAppSettings] = useState<AppSettings>({ invoiceFooter: 'Thank you for your business!' });
-    const [currentInvoicePreview, setCurrentInvoicePreview] = useState<SaleData | null>(null);
-    const [isInvoiceFinalized, setIsInvoiceFinalized] = useState(false);
-    const [isFitToScreen, setIsFitToScreen] = useState(false);
-    
-    // Sale Sessions State (for multiple bills)
-    const defaultSession: SaleSession = {
-        customerName: '', customerMobile: '', priceMode: 'B2C', languageMode: 'English',
-        taxPercent: 0, discount: 0, saleItems: [], amountPaid: '0'
-    };
-    const [saleSessions, setSaleSessions] = useState<SaleSession[]>([defaultSession, defaultSession, defaultSession]);
-    const [activeBillIndex, setActiveBillIndex] = useState(0);
+  const handleCompleteSale = async () => {
+      if (!saleDataToPreview) return;
+      // Mock saving sale
+      await sleep(1000);
+      setIsSaleFinalized(true);
+      // Reset current session
+      handleSessionUpdate({
+          customerName: '', customerMobile: '', saleItems: [], amountPaid: '',
+          discount: 0, taxPercent: 0
+      });
+      // TODO: Save to IndexedDB/API in real app
+      alert("Sale Completed Successfully!");
+  };
 
-    // Sync state
-    const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
-    const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const renderPage = () => {
+      switch (activePage) {
+          case 'New Sale':
+              return (
+                  <NewSalePage 
+                      products={products}
+                      customers={MOCK_CUSTOMERS}
+                      salesHistory={MOCK_SALES}
+                      onPreviewInvoice={handlePreviewInvoice}
+                      onViewInvoice={(sale) => { setSaleDataToPreview(sale); setIsSaleFinalized(true); setActivePage('Invoice'); }}
+                      onAddProduct={async (p) => { 
+                          const newP = { ...p, id: Date.now(), shopId: selectedShopId || 1 } as Product;
+                          setProducts([...products, newP]);
+                          return newP;
+                      }}
+                      onUpdateProduct={(p) => setProducts(products.map(prod => prod.id === p.id ? p : prod))}
+                      userRole={currentUser?.role || 'cashier'}
+                      sessionData={billSessions[activeBillIndex]}
+                      onSessionUpdate={handleSessionUpdate}
+                      activeBillIndex={activeBillIndex}
+                      onBillChange={setActiveBillIndex}
+                      currentShopId={selectedShopId}
+                      isFitToScreen={isFitToScreen}
+                      setIsFitToScreen={setIsFitToScreen}
+                  />
+              );
+          case 'Product Inventory':
+              return (
+                  <ProductInventoryPage
+                      products={products}
+                      onAddProduct={async (p) => {
+                          const newP = { ...p, id: Date.now(), shopId: selectedShopId || 1 } as Product;
+                          setProducts([...products, newP]);
+                          return newP;
+                      }}
+                      onBulkAddProducts={async (newProducts) => {
+                          const productsWithIds = newProducts.map((p, i) => ({ ...p, id: Date.now() + i, shopId: selectedShopId || 1 } as Product));
+                          setProducts([...products, ...productsWithIds]);
+                      }}
+                      onDeleteProducts={async (ids) => {
+                          setProducts(products.filter(p => !ids.includes(p.id)));
+                      }}
+                      shops={shops}
+                  />
+              );
+          case 'Invoice':
+              return (
+                  <InvoicePage 
+                      saleData={saleDataToPreview}
+                      onNavigate={handleNavigate}
+                      isFinalized={isSaleFinalized}
+                      onCompleteSale={handleCompleteSale}
+                      appearance={invoiceAppearance}
+                      onAppearanceChange={setInvoiceAppearance}
+                  />
+              );
+          case 'Settings':
+              return (
+                  <SettingsPage 
+                      currentTheme={appTheme} 
+                      onThemeChange={setAppTheme}
+                  />
+              );
+          default:
+              return <div style={{padding: '2rem'}}>Page "{activePage}" is under construction.</div>;
+      }
+  };
 
-    // Invoice Customization State
-    const [invoiceAppearance, setInvoiceAppearance] = useState<InvoiceAppearance>({
-        fontStyle: 'monospace',
-        margins: { top: 20, right: 20, bottom: 20, left: 20 },
-        paperSize: '4inch',
-        fontSize: 'medium',
-        theme: 'classic',
-    });
+  if (!currentUser) return <div className="login-container">Loading...</div>;
 
-    // Filtered data for current user/shop
-    const currentShopProducts = useMemo(() => {
-        if (!selectedShopId) return products; // Super admin might see all
-        return products.filter(p => p.shopId === selectedShopId);
-    }, [products, selectedShopId]);
-
-    const customersWithBalance = useMemo(() => customers.filter(c => c.balance > 0), [customers]);
-
-    // Handlers for data manipulation
-    const handleAddCustomer = async (newCustomerData: Omit<Customer, 'balance'>) => {
-        if(customers.some(c => c.mobile === newCustomerData.mobile)) {
-            throw new Error("A customer with this mobile number already exists.");
-        }
-        const newCustomer: Customer = { ...newCustomerData, balance: 0 };
-        setCustomers(prev => [...prev, newCustomer]);
-        await dbManager.put('customers', newCustomer);
-    };
-
-    const handleUpdateCustomer = async (originalMobile: string, updatedCustomerData: Omit<Customer, 'balance'>) => {
-        if (originalMobile !== updatedCustomerData.mobile && customers.some(c => c.mobile === updatedCustomerData.mobile)) {
-            throw new Error('A customer with this mobile number already exists.');
-        }
-        const customerToUpdate = customers.find(c => c.mobile === originalMobile);
-        if (!customerToUpdate) throw new Error("Original customer not found for update.");
-        
-        const finalUpdatedCustomer: Customer = { ...customerToUpdate, ...updatedCustomerData };
-        
-        setCustomers(prev => prev.map(c => (c.mobile === originalMobile ? finalUpdatedCustomer : c)));
-
-        if (originalMobile !== updatedCustomerData.mobile) {
-            await dbManager.bulkDelete('customers', [originalMobile]);
-        }
-        await dbManager.put('customers', finalUpdatedCustomer);
-    };
-    
-    const handleDeleteCustomer = async (mobile: string) => {
-        setCustomers(prev => prev.filter(c => c.mobile !== mobile));
-        await dbManager.bulkDelete('customers', [mobile]);
-    };
-
-    const handleViewInvoiceFromHistory = (sale: SaleData) => {
-        setCurrentInvoicePreview(sale);
-        setIsInvoiceFinalized(true);
-        setCurrentPage('Invoice');
-    };
-    
-    const handleAddProduct = useCallback(async (newProductData: Omit<Product, 'id' | 'shopId'>): Promise<Product> => {
-        if (!selectedShopId) {
-            throw new Error("Cannot add a product without a selected shop.");
-        }
-        const newProduct: Product = {
-            ...newProductData,
-            id: Date.now(),
-            shopId: selectedShopId,
-        };
-        setProducts(prev => [...prev, newProduct]);
-        await dbManager.put('products', newProduct);
-        return newProduct;
-    }, [selectedShopId]);
-
-    const handleBulkAddProducts = useCallback(async (productsToAdd: Omit<Product, 'id' | 'shopId'>[]) => {
-        if (!selectedShopId) {
-            throw new Error("Cannot add products without a selected shop.");
-        }
-        const timestamp = Date.now();
-        const newProducts: Product[] = productsToAdd.map((p, index) => ({
-            ...p,
-            id: timestamp + index,
-            shopId: selectedShopId,
-        }));
-        setProducts(prev => [...prev, ...newProducts]);
-        await dbManager.bulkPut('products', newProducts);
-    }, [selectedShopId]);
-
-    const handleDeleteProducts = useCallback(async (productIds: number[]) => {
-        setProducts(prev => prev.filter(p => !productIds.includes(p.id)));
-        await dbManager.bulkDelete('products', productIds);
-    }, []);
-
-    const handleUpdateProduct = useCallback((updatedProduct: Product) => {
-        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-        dbManager.put('products', updatedProduct);
-    }, []);
-
-    const handleAddExpense = async (description: string, amount: number) => {
-        if (!selectedShopId) {
-            throw new Error("Cannot add an expense without a selected shop.");
-        }
-        const newExpense: Expense = {
-            id: Date.now(),
-            shopId: selectedShopId,
-            date: new Date(),
-            description,
-            amount,
-        };
-        setExpenses(prev => [newExpense, ...prev]);
-        await dbManager.put('expenses', newExpense);
-    };
-
-    const handleUpdateOrderStatus = async (orderType: 'purchase' | 'sales', orderId: number, newStatus: OrderStatus) => {
-        if (orderType === 'purchase') {
-            const updatedOrders = purchaseOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-            setPurchaseOrders(updatedOrders);
-            const orderToUpdate = updatedOrders.find(o => o.id === orderId);
-            if(orderToUpdate) await dbManager.put('purchaseOrders', orderToUpdate);
-        } else {
-            const updatedOrders = salesOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-            setSalesOrders(updatedOrders);
-            const orderToUpdate = updatedOrders.find(o => o.id === orderId);
-            if(orderToUpdate) await dbManager.put('salesOrders', orderToUpdate);
-        }
-    };
-
-    const handleNavigate = (page: string) => {
-        if (page === 'New Sale') {
-            setCurrentInvoicePreview(null);
-            setIsInvoiceFinalized(false);
-        }
-        setCurrentPage(page);
-    };
-    
-    const handleSessionUpdate = useCallback((updates: Partial<SaleSession>) => {
-        setSaleSessions(prev => {
-            const newSessions = [...prev];
-            newSessions[activeBillIndex] = { ...newSessions[activeBillIndex], ...updates };
-            return newSessions;
-        });
-    }, [activeBillIndex]);
-
-    const handleBillChange = (index: number) => {
-        setActiveBillIndex(index);
-        // Reset search term when switching bills to avoid confusion
-        // This might be better handled inside NewSalePage if it gets its own internal state
-    };
-    
-    const handlePreviewInvoice = (saleData: SaleData) => {
-        setCurrentInvoicePreview(saleData);
-        setIsInvoiceFinalized(false);
-        setCurrentPage('Invoice');
-    };
-
-    const handleCompleteSale = async () => {
-        if (!currentInvoicePreview) return;
-
-        const finalizedSale: SaleData = { ...currentInvoicePreview, id: `sale-${Date.now()}` };
-        
-        // Update customer balance
-        const customerMobile = finalizedSale.customerMobile;
-        if (customerMobile) {
-            const customerIndex = customers.findIndex(c => c.mobile === customerMobile);
-            if (customerIndex > -1) {
-                const updatedCustomer = {
-                    ...customers[customerIndex],
-                    balance: finalizedSale.totalBalanceDue,
-                };
-                const newCustomers = [...customers];
-                newCustomers[customerIndex] = updatedCustomer;
-                setCustomers(newCustomers);
-                await dbManager.put('customers', updatedCustomer);
-            } else if (finalizedSale.customerName) { // Add new customer if they don't exist
-                 const newCustomer: Customer = {
-                    name: finalizedSale.customerName,
-                    mobile: finalizedSale.customerMobile,
-                    balance: finalizedSale.totalBalanceDue,
-                };
-                setCustomers(prev => [...prev, newCustomer]);
-                await dbManager.put('customers', newCustomer);
-            }
-        }
-
-        // Update product stock
-        const updatedProducts = [...products];
-        finalizedSale.saleItems.forEach(item => {
-            const productIndex = updatedProducts.findIndex(p => p.id === item.productId);
-            if (productIndex > -1) {
-                updatedProducts[productIndex].stock += (item.isReturn ? item.quantity : -item.quantity);
-            }
-        });
-        setProducts(updatedProducts);
-        await dbManager.bulkPut('products', updatedProducts);
-
-        // Add to sales history
-        const newSales = [finalizedSale, ...sales];
-        setSales(newSales);
-        await dbManager.put('sales', finalizedSale);
-
-        // Clear current bill
-        handleSessionUpdate(defaultSession);
-
-        setIsInvoiceFinalized(true);
-    };
-
-
-    // --- Login and Logout ---
-    const handleLogin = async (username, password) => {
-        setLoginError('');
-        try {
-            const { token, user } = await api.login(username, password);
-            sessionStorage.setItem('authToken', token);
-            sessionStorage.setItem('currentUser', JSON.stringify(user));
-            setCurrentUser(user);
-            if (user.role !== 'super_admin' && user.shopId) {
-                setSelectedShopId(user.shopId);
-            }
-            if(user.role === 'cashier') {
-                setCurrentPage('New Sale');
-            } else {
-                setCurrentPage('Dashboard');
-            }
-        } catch (error) {
-            setLoginError(error.message || "Login failed.");
-        }
-    };
-    
-    const handleLogout = () => {
-        sessionStorage.removeItem('authToken');
-        sessionStorage.removeItem('currentUser');
-        setCurrentUser(null);
-        setCurrentPage('New Sale');
-        setLoginError('');
-        setSaleSessions([defaultSession, defaultSession, defaultSession]);
-        setActiveBillIndex(0);
-    };
-
-    // --- Super Admin Functions ---
-    const handleAddShop = async (name: string) => {
-        if (shops.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-            throw new Error("A shop with this name already exists.");
-        }
-        const newShop = { id: Date.now(), name };
-        setShops(prev => [...prev, newShop]);
-        await dbManager.put('shops', newShop);
-    };
-    const handleUpdateShop = (id: number, name: string) => {
-        const updatedShops = shops.map(s => s.id === id ? { ...s, name } : s);
-        setShops(updatedShops);
-        dbManager.put('shops', { id, name });
-    };
-
-    const handleAddUser = async (userData: Omit<User, 'password' | 'resetToken' | 'resetTokenExpiry'> & { password?: string }) => {
-        if (users.some(u => u.username.toLowerCase() === userData.username.toLowerCase())) {
-            throw new Error("A user with this username already exists.");
-        }
-        const newUser: User = {
-            ...userData,
-            password: userData.password, // In a real app, this would be hashed on the server
-        };
-        setUsers(prev => [...prev, newUser]);
-        await dbManager.put('users', newUser);
-    };
-    
-    const handleAdminPasswordReset = async (username: string, newPass: string) => {
-        const userToUpdate = await dbManager.get<User>('users', username);
-        if (userToUpdate) {
-            const updatedUser = { ...userToUpdate, password: newPass };
-            setUsers(prev => prev.map(u => u.username === username ? updatedUser : u));
-            await dbManager.put('users', updatedUser);
-            alert(`Password for ${username} has been reset.`);
-        } else {
-            alert("User not found.");
-        }
-    };
-
-
-    // --- Settings and Data Management ---
-    useEffect(() => {
-        document.body.className = `theme-${theme}`;
-    }, [theme]);
-
-    const handleExportData = () => {
-        const allData = {
-            shops, users, products, sales, customers, expenses, notes,
-            appName, theme, appSettings,
-        };
-        const dataStr = JSON.stringify(allData, null, 2);
-        const dataBlob = new Blob([dataStr], {type: "application/json"});
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `billease_pos_backup_${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-    
-    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (!confirm("Are you sure you want to import data? This will overwrite ALL existing data in the application.")) {
-            e.target.value = ''; // Reset file input
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const data = JSON.parse(event.target?.result as string);
-                // Simple validation
-                if (!Array.isArray(data.products) || !Array.isArray(data.customers)) {
-                    throw new Error("Invalid backup file format.");
-                }
-                
-                // Clear existing data
-                await Promise.all([
-                    dbManager.clear('shops'), dbManager.clear('users'), dbManager.clear('products'),
-                    dbManager.clear('sales'), dbManager.clear('customers'), dbManager.clear('expenses'),
-                ]);
-
-                // Set state
-                setShops(data.shops || []);
-                setUsers(data.users || []);
-                setProducts(data.products || []);
-                setSales(data.sales ? data.sales.map((s: SaleData) => ({...s, date: new Date(s.date)})) : []);
-                setCustomers(data.customers || []);
-                setExpenses(data.expenses ? data.expenses.map((ex: Expense) => ({...ex, date: new Date(ex.date)})) : []);
-                setNotes(data.notes || []);
-                setAppName(data.appName || 'BillEase POS');
-                setTheme(data.theme || 'professional-light');
-                setAppSettings(data.appSettings || { invoiceFooter: 'Thank you!' });
-
-                // Bulk insert into DB
-                await Promise.all([
-                    dbManager.bulkPut('shops', data.shops || []),
-                    dbManager.bulkPut('users', data.users || []),
-                    dbManager.bulkPut('products', data.products || []),
-                    dbManager.bulkPut('sales', data.sales ? data.sales.map((s: SaleData) => ({...s, date: new Date(s.date)})) : []),
-                    dbManager.bulkPut('customers', data.customers || []),
-                    dbManager.bulkPut('expenses', data.expenses ? data.expenses.map((ex: Expense) => ({...ex, date: new Date(ex.date)})) : []),
-                ]);
-
-                alert('Data imported successfully! The application will now reload.');
-                window.location.reload();
-            } catch (err) {
-                alert(`Error importing data: ${err.message}`);
-            } finally {
-                e.target.value = ''; // Reset file input
-            }
-        };
-        reader.readAsText(file);
-    };
-
-
-    // --- Initial Load Effect ---
-    useEffect(() => {
-        const init = async () => {
-            await dbManager.open();
-            
-            // Load from storage or use mocks
-            const storedProducts = await dbManager.getAll<Product>('products');
-            setProducts(storedProducts.length > 0 ? storedProducts : MOCK_PRODUCTS);
-
-            const storedCustomers = await dbManager.getAll<Customer>('customers');
-            setCustomers(storedCustomers.length > 0 ? storedCustomers : MOCK_CUSTOMERS);
-            
-            const storedSales = await dbManager.getAll<SaleData>('sales');
-            setSales(storedSales.length > 0 ? storedSales.map(s => ({...s, date: new Date(s.date)})) : MOCK_SALES.map(s => ({...s, date: new Date(s.date)})));
-            
-            const storedUsers = await dbManager.getAll<User>('users');
-            if (storedUsers.length === 0) {
-                 await dbManager.bulkPut('users', [
-                    { username: 'superadmin', password: 'password', role: 'super_admin', email: 'super@admin.com' },
-                    { username: 'admin1', password: 'password', role: 'admin', shopId: 1, email: 'admin1@shop.com' },
-                    { username: 'cashier1', password: 'password', role: 'cashier', shopId: 1, email: 'cashier1@shop.com' }
-                 ]);
-                 setUsers(await dbManager.getAll<User>('users'));
-            } else {
-                 setUsers(storedUsers);
-            }
-
-            const storedShops = await dbManager.getAll<Shop>('shops');
-            if (storedShops.length === 0) {
-                 await dbManager.bulkPut('shops', [{ id: 1, name: "Main Street Branch" }, { id: 2, name: "Downtown Kiosk"}]);
-                 setShops(await dbManager.getAll<Shop>('shops'));
-            } else {
-                 setShops(storedShops);
-            }
-
-            const storedPurchaseOrders = await dbManager.getAll<PurchaseOrder>('purchaseOrders');
-            setPurchaseOrders(storedPurchaseOrders.length > 0 ? storedPurchaseOrders.map(o => ({ ...o, orderDate: new Date(o.orderDate)})) : MOCK_PURCHASE_ORDERS);
-
-            const storedSalesOrders = await dbManager.getAll<SalesOrder>('salesOrders');
-            setSalesOrders(storedSalesOrders.length > 0 ? storedSalesOrders.map(o => ({ ...o, orderDate: new Date(o.orderDate)})) : MOCK_SALES_ORDERS);
-
-            setExpenses(await dbManager.getAll<Expense>('expenses'));
-
-            const savedUser = sessionStorage.getItem('currentUser');
-            if (savedUser) {
-                const user = JSON.parse(savedUser);
-                setCurrentUser(user);
-                if (user.role !== 'super_admin' && user.shopId) setSelectedShopId(user.shopId);
-                if(user.role === 'cashier') setCurrentPage('New Sale'); else setCurrentPage('Dashboard');
-            }
-
-            setIsLoading(false);
-        };
-        init();
-    }, []);
-
-    if (isLoading) {
-        return <div className="loading-screen"><h1>Loading BillEase POS...</h1></div>;
-    }
-
-    if (!currentUser) {
-        return (
-            <div className="login-container">
-                <div className="login-layout">
-                     <div className="login-branding">
-                        <h1 className="login-branding-title">{appName}</h1>
-                        <p className="login-branding-tagline">Effortless Billing, Powerful Management</p>
-                    </div>
-                    <div className="login-form-container">
-                        <form className="login-form" onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); handleLogin(data.get('username'), data.get('password')); }}>
-                            <h2>Welcome Back!</h2>
-                            {loginError && <p className="login-error">{loginError}</p>}
-                            {successMessage && <p className="success-message">{successMessage}</p>}
-                            <div className="form-group">
-                                <label htmlFor="username">Username</label>
-                                <div className="input-with-icon-login">
-                                    <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                    <input type="text" name="username" id="username" className="input-field" required autoFocus />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="password">Password</label>
-                                 <div className="input-with-icon-login">
-                                    <svg className="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                                    <input type="password" name="password" id="password" className="input-field" required />
-                                </div>
-                            </div>
-                            <button type="submit" className="action-button-primary login-button">Login</button>
-                             <div className="login-footer">
-                                <a href="#" className="forgot-password-link" onClick={() => alert("Password reset functionality is not implemented in this demo.")}>Forgot Password?</a>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    const handleShopChange = (shopId: number) => {
-        setSelectedShopId(shopId === 0 ? null : shopId);
-        // Maybe navigate to a global dashboard view if 'All Shops' is selected.
-        if (shopId === 0) setCurrentPage('Dashboard');
-    };
-
-    const renderPage = () => {
-        switch (currentPage) {
-            case 'Dashboard':
-                return <DashboardAndReportsPage salesHistory={sales} products={products} shops={shops} onViewInvoice={handleViewInvoiceFromHistory} />;
-            case 'New Sale':
-                return <NewSalePage
-                            products={currentShopProducts}
-                            customers={customers}
-                            salesHistory={sales}
-                            onPreviewInvoice={handlePreviewInvoice}
-                            onViewInvoice={handleViewInvoiceFromHistory}
-                            onAddProduct={handleAddProduct}
-                            onUpdateProduct={handleUpdateProduct}
-                            userRole={currentUser.role}
-                            sessionData={saleSessions[activeBillIndex]}
-                            onSessionUpdate={handleSessionUpdate}
-                            activeBillIndex={activeBillIndex}
-                            onBillChange={handleBillChange}
-                            currentShopId={selectedShopId}
-                            isFitToScreen={isFitToScreen}
-                            setIsFitToScreen={setIsFitToScreen}
-                       />;
-            case 'Invoice':
-                return <InvoicePage
-                            saleData={currentInvoicePreview}
-                            onNavigate={handleNavigate}
-                            isFinalized={isInvoiceFinalized}
-                            onCompleteSale={handleCompleteSale}
-                            appearance={invoiceAppearance}
-                            onAppearanceChange={setInvoiceAppearance}
-                        />;
-            case 'Product Inventory':
-                return <ProductInventoryPage 
-                            products={currentShopProducts} 
-                            onAddProduct={handleAddProduct}
-                            onBulkAddProducts={handleBulkAddProducts}
-                            onDeleteProducts={handleDeleteProducts}
-                            shops={shops} 
-                        />;
-            case 'Customer Management':
-                return <CustomerManagementPage 
-                            customers={customers} 
-                            onAddCustomer={handleAddCustomer}
-                            onUpdateCustomer={handleUpdateCustomer}
-                            onDeleteCustomer={handleDeleteCustomer}
-                            salesHistory={sales} 
-                            onViewInvoice={handleViewInvoiceFromHistory} 
-                        />;
-            case 'Order Management':
-                 return <OrderManagementPage
-                            purchaseOrders={purchaseOrders}
-                            salesOrders={salesOrders}
-                            onUpdateOrderStatus={handleUpdateOrderStatus}
-                        />;
-            case 'Expenses':
-                 return <ExpensesPage expenses={expenses} onAddExpense={handleAddExpense} shops={shops} />;
-            case 'Balance Due':
-                return <BalanceDuePage customersWithBalance={customersWithBalance} />;
-            case 'Settings':
-                return <SettingsPage 
-                            theme={theme} 
-                            onThemeChange={setTheme}
-                            settings={appSettings}
-                            onSettingsChange={setAppSettings}
-                            appName={appName}
-                            onAppNameChange={setAppName}
-                            onExportData={handleExportData}
-                            onImportData={handleImportData}
-                            isExporting={false} isImporting={false}
-                        />;
-             case 'Manage Users':
-                return <ShopManagementPage 
-                            users={users} 
-                            shops={shops} 
-                            onAddShop={handleAddShop} 
-                            onAddUser={handleAddUser}
-                            onUpdateShop={handleUpdateShop}
-                            onAdminPasswordReset={handleAdminPasswordReset}
-                        />;
-            case 'Notes':
-                return <NotesPage notes={notes} setNotes={setNotes} />;
-            default:
-                return <h2>Page not found</h2>;
-        }
-    };
-    
-    // Hide header/footer for invoice page
-    const isInvoicePage = currentPage === 'Invoice';
-    // Hide header for new sale page in fit-to-screen mode
-    const hideHeader = isInvoicePage || (currentPage === 'New Sale' && isFitToScreen);
-
-    return (
-        <>
-            {!hideHeader && (
-                <AppHeader
-                    onNavigate={handleNavigate}
-                    currentUser={currentUser}
-                    onLogout={handleLogout}
-                    appName={appName}
-                    shops={shops}
-                    selectedShopId={selectedShopId}
-                    onShopChange={handleShopChange}
-                    syncStatus={syncStatus}
-                    pendingSyncCount={pendingSyncCount}
-                />
-            )}
-            <main className="app-main">
-                {renderPage()}
-            </main>
-        </>
-    );
+  return (
+    <>
+      <AppHeader 
+          onNavigate={handleNavigate} 
+          currentUser={currentUser} 
+          onLogout={() => setCurrentUser(null)} 
+          appName="BillEase POS"
+          shops={shops}
+          selectedShopId={selectedShopId}
+          onShopChange={setSelectedShopId}
+          syncStatus="synced"
+          pendingSyncCount={0}
+      />
+      <div className="app-main">
+          {renderPage()}
+      </div>
+    </>
+  );
 };
 
 const container = document.getElementById('root');

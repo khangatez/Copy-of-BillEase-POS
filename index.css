@@ -565,7 +565,8 @@ body {
 .app-main {
   flex-grow: 1;
   padding: var(--padding-md);
-  overflow-y: auto;
+  /* Change to hidden to allow full-height children like Invoice Page to manage scrolling */
+  overflow: hidden; 
   display: flex;
   flex-direction: column;
 }
@@ -578,6 +579,9 @@ body {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  /* Page containers should scroll internally */
+  overflow-y: auto; 
+  height: 100%;
 }
 
 .page-container-full-width {
@@ -1556,38 +1560,59 @@ body {
 /* --- INVOICE PAGE (NEW LAYOUT) --- */
 .invoice-page-layout {
   display: flex;
-  flex-direction: column;
+  flex-direction: row; /* Left (Preview) to Right (Controls) */
   height: 100%;
+  width: 100%;
+  flex-grow: 1;
   overflow: hidden;
+  gap: var(--padding-md);
 }
+
+/* Remove the risky negative margins */
 .app-main > .invoice-page-layout {
+  margin: 0;
+  width: 100%;
+  height: 100%;
   padding: 0;
 }
+
 .invoice-preview-container {
   flex-grow: 1;
-  overflow-y: auto;
+  overflow: auto;
   padding: var(--padding-lg);
   display: flex;
   justify-content: center;
-  background-color: var(--background-primary);
+  align-items: flex-start;
+  background-color: var(--background-tertiary);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  min-height: 0; 
+  min-width: 0;
 }
+
 .invoice-paper {
   background-color: #fff;
   color: #000;
   box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
-  margin: var(--padding-lg) 0;
   border: 1px solid #ccc;
+  flex-shrink: 0;
+  margin-bottom: var(--padding-lg);
 }
+
 .invoice-controls-panel {
   flex-shrink: 0;
+  width: 350px; /* Fixed width for controls */
   background-color: var(--background-secondary);
   padding: var(--padding-md);
-  border-top: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: var(--padding-md);
+  overflow-y: auto;
 }
+
 .controls-row {
     display: flex;
     align-items: flex-end;
@@ -2311,10 +2336,18 @@ body {
 
     .invoice-page-layout {
         flex-direction: column;
+        overflow-y: auto; /* Allow window scroll on mobile */
+    }
+    .invoice-preview-container {
+        min-height: 500px; /* Ensure preview has space on mobile */
+        height: auto;
+        flex-grow: 0;
     }
     .invoice-controls-panel {
-        overflow-y: auto;
-        max-height: 50vh;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--border-color);
+        overflow-y: visible;
     }
 }
 
