@@ -246,12 +246,12 @@ const MOCK_PRODUCTS: Product[] = [
     { id: 2, shopId: 1, name: 'Milk', nameTamil: 'மில்க்', b2bPrice: 1.20, b2cPrice: 1.50, stock: 50, barcode: '2222', category: 'Dairy' },
     { id: 3, shopId: 2, name: 'Bread', nameTamil: 'பிரெட்', b2bPrice: 2.00, b2cPrice: 2.50, stock: 30, barcode: '3333', category: 'Bakery' },
     { id: 4, shopId: 2, name: 'Coffee Beans', nameTamil: 'காபி பீன்ஸ்', b2bPrice: 8.00, b2cPrice: 10.00, stock: 8, barcode: '4444', category: 'Beverages' },
-    { id: 5, shopId: 1, name: 'BLACK FRY PAN PLASTIC HANDLE', nameTamil: 'பிளாக் ஃப்ரை பேன் பிளாஸ்டிக் ஹேண்டில்', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555', category: 'Kitchenware' },
+    { id: 5, shopId: 1, name: 'Black Fry Pan Plastic Handle', nameTamil: 'பிளாக் ஃப்ரை பேன் பிளாஸ்டிக் ஹேண்டில்', b2bPrice: 150, b2cPrice: 165, stock: 25, barcode: '5555', category: 'Kitchenware' },
     { id: 99, shopId: 1, name: 'Kambi Aduppu 8mm', nameTamil: 'கம்பி அடுப்பு 8mm', b2bPrice: 130.0, b2cPrice: 140.0, stock: 15, barcode: '9999', category: 'Hardware' }
 ];
 
 const MOCK_CUSTOMERS: Customer[] = [
-    { name: 'abu bhai', mobile: '9894030029', balance: 0 },
+    { name: 'Abu Bhai', mobile: '9894030029', balance: 0 },
     { name: 'Christy', mobile: '+917601984346', balance: 50.75 },
     { name: 'Sardar Bhai', mobile: '+919043553135', balance: 120.00 },
 ];
@@ -261,7 +261,7 @@ const MOCK_SALES: SaleData[] = [
         id: 'sale-3',
         shopId: 1,
         date: new Date('2025-07-09T12:11:59'),
-        customerName: 'abu bhai',
+        customerName: 'Abu Bhai',
         customerMobile: '9894030029',
         saleItems: [
             { productId: 99, name: 'Kambi Aduppu 8mm', nameTamil: 'கம்பி அடுப்பு 8mm', quantity: 8.28, price: 140.0, isReturn: false }
@@ -283,12 +283,12 @@ const MOCK_SALES: SaleData[] = [
 ];
 
 const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
-    { id: 1, shopId: 1, supplierName: 'Wholesale Supplies Inc.', orderDate: new Date(new Date().setDate(new Date().getDate() - 5)), items: [{ productId: 5, name: 'BLACK FRY PAN PLASTIC HANDLE', quantity: 20, price: 150 }], totalAmount: 3000, status: 'Fulfilled' },
+    { id: 1, shopId: 1, supplierName: 'Wholesale Supplies Inc.', orderDate: new Date(new Date().setDate(new Date().getDate() - 5)), items: [{ productId: 5, name: 'Black Fry Pan Plastic Handle', quantity: 20, price: 150 }], totalAmount: 3000, status: 'Fulfilled' },
     { id: 2, shopId: 1, supplierName: 'Kitchen Goods Co.', orderDate: new Date(), items: [{ productId: 99, name: 'Kambi Aduppu 8mm', quantity: 10, price: 130 }], totalAmount: 1300, status: 'Pending' },
 ];
 
 const MOCK_SALES_ORDERS: SalesOrder[] = [
-    { id: 1, shopId: 1, customerMobile: '9894030029', customerName: 'abu bhai', orderDate: new Date(new Date().setDate(new Date().getDate() - 2)), items: [{ productId: 1, name: 'Apple', quantity: 10, price: 0.50 }], totalAmount: 5.00, status: 'Pending' },
+    { id: 1, shopId: 1, customerMobile: '9894030029', customerName: 'Abu Bhai', orderDate: new Date(new Date().setDate(new Date().getDate() - 2)), items: [{ productId: 1, name: 'Apple', quantity: 10, price: 0.50 }], totalAmount: 5.00, status: 'Pending' },
     { id: 2, shopId: 2, customerMobile: '+917601984346', customerName: 'Christy', orderDate: new Date(new Date().setDate(new Date().getDate() - 10)), items: [{ productId: 3, name: 'Bread', quantity: 5, price: 2.50 }], totalAmount: 12.50, status: 'Fulfilled' },
 ];
 
@@ -725,7 +725,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ isOpen, onClose, onAd
                 <div className="modal-header"><h3>Add New Product</h3><button onClick={onClose} className="close-button">&times;</button></div>
                 <div className="modal-body">
                     <form id={formId} onSubmit={handleAddProduct} className="add-product-form">
-                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value)} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus/></div>
+                        <div className="form-group"><label htmlFor="modal-new-product-name">Product Name (English)</label><input id="modal-new-product-name" type="text" className="input-field" value={newProductName} onChange={e => setNewProductName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={e => handleKeyDown(e, nameTamilRef)} required autoFocus/></div>
                         <div className="form-group"><label htmlFor="modal-new-product-name-tamil">Product Name (Tamil) {isTranslating && '(Translating...)'}</label><input ref={nameTamilRef} id="modal-new-product-name-tamil" type="text" className="input-field" value={newProductNameTamil} onChange={e => setNewProductNameTamil(e.target.value)} onKeyDown={e => handleKeyDown(e, b2bRef)} disabled={isTranslating} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2b">B2B Price</label><input ref={b2bRef} id="modal-new-product-b2b" type="number" step="0.01" className="input-field" value={newProductB2B} onChange={e => setNewProductB2B(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, b2cRef)} /></div>
                         <div className="form-group"><label htmlFor="modal-new-product-b2c">B2C Price</label><input ref={b2cRef} id="modal-new-product-b2c" type="number" step="0.01" className="input-field" value={newProductB2C} onChange={e => setNewProductB2C(parseFloat(e.target.value) || 0)} onKeyDown={e => handleKeyDown(e, stockRef)} /></div>
@@ -810,8 +810,10 @@ const ImportProductsModal: React.FC<ImportProductsModalProps> = ({ isOpen, onClo
                         const name = row[nameHeader];
                         if (!name || String(name).trim() === '') return null;
 
+                        const formattedName = String(name).replace(/\b\w/g, l => l.toUpperCase());
+
                         return {
-                            name: String(name),
+                            name: formattedName,
                             nameTamil: nameTamilHeader ? String(row[nameTamilHeader] || '') : '',
                             b2bPrice: b2bHeader ? parseFloat(row[b2bHeader]) || 0 : 0,
                             b2cPrice: b2cHeader ? parseFloat(row[b2cHeader]) || 0 : 0,
@@ -1317,7 +1319,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
         const parts = term.split(/\s+/);
         const lastPart = parts[parts.length - 1];
         const price = parseFloat(lastPart);
-        const name = !isNaN(price) && parts.length > 1 ? parts.slice(0, -1).join(' ') : term;
+        let name = !isNaN(price) && parts.length > 1 ? parts.slice(0, -1).join(' ') : term;
+        
+        name = name.replace(/\b\w/g, l => l.toUpperCase());
 
         if (!name) {
             alert("Product name cannot be empty.");
@@ -1581,7 +1585,7 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                         </div>
                     </div>
                     <div className="customer-details-new">
-                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1) })} onKeyDown={handleCustomerNameKeydown} /></div>
+                        <div className="form-group"><label htmlFor="customer-name">Customer Name</label><input id="customer-name" type="text" className="input-field" value={customerName} onChange={e => onSessionUpdate({ customerName: e.target.value.replace(/\b\w/g, l => l.toUpperCase()) })} onKeyDown={handleCustomerNameKeydown} /></div>
                         <div className="form-group">
                             <label htmlFor="customer-mobile">Customer Mobile</label>
                             <div className="mobile-input-group">
@@ -1607,9 +1611,9 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                     </div>
                     <div className="product-search-container">
                         <div className="input-with-icons">
-                            <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={handleSearchKeyDown} autoComplete="off" />
+                            <input id="product-search" type="text" className="input-field" placeholder="Search for a product by name or barcode... or use the mic" ref={searchInputRef} value={searchTerm} onChange={e => setSearchTerm(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={handleSearchKeyDown} autoComplete="off" />
                             <button onClick={handleVoiceSearch} className={`input-icon-button ${isListening ? 'voice-listening' : ''}`} aria-label="Search by voice"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg></button>
-                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
+                            <button onClick={() => setIsScannerOpen(true)} className="input-icon-button" aria-label="Scan barcode"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2V3h2v2h2v14H3V5zm2 2v2H5V7h2zm4 0v2H9V7h2zm4 0v2h-2V7h2zm4 0v2h-2V7h2zM5 11h2v2H5v-2zm4 0h2v2H9v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z"></path></svg></button>
                         </div>
                         {(suggestions.length > 0 || showAddNewSuggestion) && (
                             <div className="product-suggestions" ref={suggestionsContainerRef} role="listbox" aria-label="Product suggestions">
@@ -1672,7 +1676,12 @@ const NewSalePage: React.FC<NewSalePageProps> = ({ products, customers, salesHis
                                             className="input-field"
                                             data-field={languageMode === 'Tamil' ? 'nameTamil' : 'name'}
                                             value={languageMode === 'Tamil' ? item.nameTamil : item.name}
-                                            onChange={e => handleItemUpdate(index, languageMode === 'Tamil' ? 'nameTamil' : 'name', e.target.value)}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                const field = languageMode === 'Tamil' ? 'nameTamil' : 'name';
+                                                const finalVal = field === 'name' ? val.replace(/\b\w/g, l => l.toUpperCase()) : val;
+                                                handleItemUpdate(index, field, finalVal);
+                                            }}
                                             aria-label={`Description for item ${index + 1}`}
                                         />
                                     </td>
@@ -2210,7 +2219,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
         finally { setIsAdding(false); }
     };
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, nextRef: React.RefObject<HTMLElement>) => { if (e.key === 'Enter') { e.preventDefault(); nextRef.current?.focus(); } };
-    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()}><div className="modal-header"><h3>Add New Customer</h3><button onClick={onClose} className="close-button">&times;</button></div><div className="modal-body"><form id={formId} onSubmit={handleSubmit} className="add-product-form"><div className="form-group"><label htmlFor="modal-new-customer-name">Customer Name</label><input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus /></div><div className="form-group"><label htmlFor="modal-new-customer-mobile">Mobile Number</label><input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required /></div></form></div><div className="modal-footer"><button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button><button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Customer'}</button></div></div></div>);
+    return (<div className="modal-overlay" onClick={onClose}><div className="modal-content" onClick={e => e.stopPropagation()}><div className="modal-header"><h3>Add New Customer</h3><button onClick={onClose} className="close-button">&times;</button></div><div className="modal-body"><form id={formId} onSubmit={handleSubmit} className="add-product-form"><div className="form-group"><label htmlFor="modal-new-customer-name">Customer Name</label><input id="modal-new-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} onKeyDown={e => handleKeyDown(e, mobileRef)} required autoFocus /></div><div className="form-group"><label htmlFor="modal-new-customer-mobile">Mobile Number</label><input ref={mobileRef} id="modal-new-customer-mobile" type="text" className="input-field" value={mobile} onChange={e => setMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, submitRef)} required /></div></form></div><div className="modal-footer"><button className="action-button-secondary" type="button" onClick={onClose} disabled={isAdding}>Cancel</button><button ref={submitRef} type="submit" form={formId} className="action-button-primary" disabled={isAdding}>{isAdding ? 'Adding...' : 'Add Customer'}</button></div></div></div>);
 };
 
 // --- EDIT CUSTOMER MODAL ---
@@ -2261,7 +2270,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ isOpen, onClose, 
                     <form id={formId} onSubmit={handleSubmit} className="add-product-form">
                         <div className="form-group">
                             <label htmlFor="modal-edit-customer-name">Customer Name</label>
-                            <input id="modal-edit-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1))} required autoFocus />
+                            <input id="modal-edit-customer-name" type="text" className="input-field" value={name} onChange={e => setName(e.target.value.replace(/\b\w/g, l => l.toUpperCase()))} required autoFocus />
                         </div>
                         <div className="form-group">
                             <label htmlFor="modal-edit-customer-mobile">Mobile Number</label>
